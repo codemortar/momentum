@@ -21,7 +21,7 @@ bias, real costs, the live signal runs the exact code the backtest validated).
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-pytest                        # 19 tests, no network required
+pytest                        # 40 tests, no network required
 ```
 
 ## Usage
@@ -37,7 +37,37 @@ python -m momentum backtest --universe us --all --plot
 
 # 3. See what to hold this month
 python -m momentum signal --universe uk --notify
+
+# 4. After trading (or deciding not to), tell the ledger what you did
+python -m momentum confirm --universe uk
+
+# 5. How have the recommendations done — and did following them pay?
+python -m momentum ledger --universe uk
 ```
+
+Every `signal` run records its recommendations. `confirm` asks about the ones
+where a trade was actually recommended and you haven't answered; `ledger` then
+compares the strategy's path against the path you actually took (the
+**behaviour gap** — what hesitation cost you):
+
+```
+  ma_200          since 2026-06-30: strategy +4.20%, you +2.90%, behaviour gap -1.30%
+```
+
+### Email notifications (SendGrid)
+
+With `--notify`, the signal is emailed if these three environment variables are
+set (otherwise it falls back to a macOS notification):
+
+```bash
+export SENDGRID_API_KEY="SG...."             # keep out of the repo!
+export MOMENTUM_EMAIL_FROM="you@yourdomain"  # must be a verified sender in SendGrid
+export MOMENTUM_EMAIL_TO="you@yourdomain"
+```
+
+The email spells out the action per changed strategy — e.g.
+`ma_200: SELL VUSA.L, BUY VGOV.L` — plus the current holding for every strategy.
+Sending uses SendGrid's plain HTTPS API via the stdlib (no extra dependency).
 
 ### Example (US, 2005–2026)
 
@@ -81,6 +111,12 @@ because it runs jobs missed while the laptop was asleep. Create
     <string>--notify</string>
   </array>
   <key>WorkingDirectory</key><string>/Users/christopherpolly/github/momentum</string>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>SENDGRID_API_KEY</key><string>SG....</string>
+    <key>MOMENTUM_EMAIL_FROM</key><string>you@yourdomain</string>
+    <key>MOMENTUM_EMAIL_TO</key><string>you@yourdomain</string>
+  </dict>
   <key>StartCalendarInterval</key>
   <dict><key>Day</key><integer>1</integer><key>Hour</key><integer>9</integer></dict>
 </dict></plist>
@@ -89,6 +125,42 @@ because it runs jobs missed while the laptop was asleep. Create
 Then `launchctl load ~/Library/LaunchAgents/co.codemortar.momentum.plist`. It
 fires on the 1st of each month at 09:00. (It fetches cached data; add a `fetch
 --refresh` step if you want fresh prices first.)
+
+## Running on a server (e.g. a DigitalOcean droplet)
+
+A cheap always-on Linux box beats the laptop for reliability (no missed runs),
+and email is the natural notification channel there. One-time setup on a basic
+droplet:
+
+```bash
+sudo apt install -y python3-venv git
+git clone https://github.com/codemortar/momentum.git ~/momentum
+cd ~/momentum && python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+```
+
+Put the secrets in an env file **outside the repo** so they can never be
+committed, and lock it down:
+
+```bash
+cat > ~/momentum.env <<'EOF'
+export SENDGRID_API_KEY="SG...."
+export MOMENTUM_EMAIL_FROM="you@yourdomain"
+export MOMENTUM_EMAIL_TO="you@yourdomain"
+EOF
+chmod 600 ~/momentum.env
+```
+
+Then `crontab -e` and schedule the monthly run — refresh prices first, then
+signal (times are UTC on a stock droplet):
+
+```cron
+0 9 1 * * . $HOME/momentum.env && cd $HOME/momentum && .venv/bin/python -m momentum fetch --universe uk --refresh && .venv/bin/python -m momentum signal --universe uk --notify >> $HOME/momentum-cron.log 2>&1
+```
+
+The `state/` directory lives on the droplet, so change detection ("CHANGED
+from X -> Y") keeps working month to month. Check `momentum-cron.log` if an
+email ever fails to arrive — on Linux there is no notification fallback, the
+log is the record.
 
 ## Layout
 
@@ -100,7 +172,8 @@ momentum/backtest.py     engine: decide month-end, execute next day, costs
 momentum/metrics.py      CAGR, max drawdown, vol, Sharpe
 momentum/report.py       comparison table + equity/drawdown PNG
 momentum/runner.py       CLI orchestration for backtests
-momentum/signal.py       live signal, state file, macOS notification
+momentum/signal.py       live signal, state file, email/macOS delivery
+momentum/ledger.py       did-you-trade ledger + strategy-vs-you performance
 tests/                   synthetic-data tests (no network)
 ```
 

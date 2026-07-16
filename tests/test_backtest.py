@@ -5,10 +5,11 @@ from __future__ import annotations
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from momentum import backtest
 from momentum.config import BONDS, CostModel, EQUITIES_US
-from momentum.strategies import buy_and_hold, dual_momentum, ma_200
+from momentum.strategies import STRATEGIES, buy_and_hold, ma_200
 
 
 # --- M2: cost accounting & buy-and-hold identity -----------------------------
@@ -54,9 +55,11 @@ def test_zero_turnover_rebalance_is_free(flat_prices):
 
 # --- M3: lookahead guardrails ------------------------------------------------
 
-def test_future_data_does_not_change_past_decisions(trending_prices):
-    full = backtest.run(trending_prices, dual_momentum, "dm", CostModel())
-    trunc = backtest.run(trending_prices.iloc[:-100], dual_momentum, "dm", CostModel())
+@pytest.mark.parametrize("name", sorted(STRATEGIES))
+def test_future_data_does_not_change_past_decisions(trending_prices, name):
+    strategy = STRATEGIES[name]
+    full = backtest.run(trending_prices, strategy, name, CostModel())
+    trunc = backtest.run(trending_prices.iloc[:-100], strategy, name, CostModel())
     overlap = trunc.weights_history.index
     # Every decision made in the truncated run must be identical in the full run.
     pd.testing.assert_frame_equal(

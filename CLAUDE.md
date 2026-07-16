@@ -13,6 +13,8 @@ pytest                                             # all tests, no network
 python -m momentum fetch    --universe us|uk [--refresh]
 python -m momentum backtest --universe us [--strategy NAME | --all] [--cost-bps N] [--fee-bps N] [--plot]
 python -m momentum signal   --universe uk [--notify]
+python -m momentum confirm  --universe uk [--strategy NAME] [--yes | --no]
+python -m momentum ledger   --universe uk [--strategy NAME]
 ```
 
 ## Architecture in five lines
