@@ -226,11 +226,11 @@ def compose_email(
             "No changes this month. If you already hold your strategy's position "
             "below, do nothing."
         )
-    lines += ["", "What each strategy says (follow ONE; the rest are context):"]
+    lines += ["", "What each strategy says (follow ONE; the rest are context):", ""]
     for r in reports:
-        lines.append(f"  {r.strategy:15s} HOLD {r.ticker} ({r.role})")
+        lines.append(f"  {r.strategy:15s} HOLD {r.ticker} ({r.role})", "")
         if explanations and r.strategy in explanations:
-            lines.append(f"      {explanations[r.strategy]}")
+            lines.append(f"      {explanations[r.strategy]}", "")
     if snapshot:
         lines += [""] + snapshot
     if changes:
@@ -238,7 +238,6 @@ def compose_email(
             "",
             f"After trading, record it: python -m momentum confirm --universe {universe_name}",
         ]
-    lines += ["", "Decision support only — you place the trades. Not financial advice."]
     return subject, "\n".join(lines)
 
 
