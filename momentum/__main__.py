@@ -1,0 +1,75 @@
+"""Command-line entry point: `python -m momentum <command>`.
+
+Commands:
+  fetch    --universe us|uk [--refresh]
+  backtest --universe us [--strategy NAME | --all] [--cost-bps N] [--fee-bps N] [--plot]
+  signal   --universe uk [--notify]
+"""
+
+from __future__ import annotations
+
+import argparse
+import sys
+
+from . import config, data
+
+
+def _cmd_fetch(args: argparse.Namespace) -> int:
+    universe = config.get_universe(args.universe)
+    data._cli_fetch(universe, refresh=args.refresh)
+    return 0
+
+
+def _cmd_backtest(args: argparse.Namespace) -> int:
+    # Imported lazily so `fetch` works before later milestones exist.
+    from . import runner
+
+    return runner.run_backtest(
+        universe_name=args.universe,
+        strategy=None if args.all else args.strategy,
+        cost_bps=args.cost_bps,
+        fee_bps=args.fee_bps,
+        plot=args.plot,
+    )
+
+
+def _cmd_signal(args: argparse.Namespace) -> int:
+    from . import signal as signal_mod
+
+    return signal_mod.run_signal(universe_name=args.universe, notify=args.notify)
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog="momentum", description=__doc__)
+    sub = parser.add_subparsers(dest="command", required=True)
+
+    p_fetch = sub.add_parser("fetch", help="download & cache price data")
+    p_fetch.add_argument("--universe", default="us", choices=sorted(config.UNIVERSES))
+    p_fetch.add_argument("--refresh", action="store_true", help="re-download even if cached")
+    p_fetch.set_defaults(func=_cmd_fetch)
+
+    p_bt = sub.add_parser("backtest", help="run a historical backtest")
+    p_bt.add_argument("--universe", default="us", choices=sorted(config.UNIVERSES))
+    grp = p_bt.add_mutually_exclusive_group()
+    grp.add_argument("--strategy", help="single strategy name")
+    grp.add_argument("--all", action="store_true", help="compare all strategies")
+    p_bt.add_argument("--cost-bps", type=float, default=10.0)
+    p_bt.add_argument("--fee-bps", type=float, default=0.0)
+    p_bt.add_argument("--plot", action="store_true", help="save equity/drawdown PNG")
+    p_bt.set_defaults(func=_cmd_backtest)
+
+    p_sig = sub.add_parser("signal", help="show current month's holdings signal")
+    p_sig.add_argument("--universe", default="uk", choices=sorted(config.UNIVERSES))
+    p_sig.add_argument("--notify", action="store_true", help="also send a macOS notification")
+    p_sig.set_defaults(func=_cmd_signal)
+
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = build_parser().parse_args(argv)
+    return args.func(args)
+
+
+if __name__ == "__main__":
+    sys.exit(main())
