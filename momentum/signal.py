@@ -226,6 +226,14 @@ def _deliver(
             send_email_sendgrid(cfg, subject, body)
             print(f"\nEmailed signal to {cfg.to_addr}.")
             return
+        except urllib.error.HTTPError as exc:
+            # SendGrid explains rejections (bad key, unverified sender) in the
+            # response body — surface it or the 4xx alone is undebuggable.
+            detail = exc.read().decode("utf-8", "replace")[:300]
+            print(
+                f"\nEmail failed (HTTP {exc.code}: {detail}); "
+                "falling back to macOS notification."
+            )
         except (urllib.error.URLError, OSError) as exc:
             print(f"\nEmail failed ({exc}); falling back to macOS notification.")
     else:
