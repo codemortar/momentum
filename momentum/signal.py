@@ -226,19 +226,43 @@ def compose_email(
             "No changes this month. If you already hold your strategy's position "
             "below, do nothing."
         )
-    lines += ["", "What each strategy says (follow ONE; the rest are context):", ""]
+    section_header = (
+        "Your strategy:"
+        if len(reports) == 1
+        else "What each strategy says (follow ONE; the rest are context):"
+    )
+    lines += ["", section_header, ""]
     for r in reports:
-        lines.append(f"  {r.strategy:15s} HOLD {r.ticker} ({r.role})", "")
+        lines.append(f"  {r.strategy:15s} HOLD {r.ticker} ({r.role})")
         if explanations and r.strategy in explanations:
-            lines.append(f"      {explanations[r.strategy]}", "")
+            lines.append(f"      {explanations[r.strategy]}")
+        lines.append("")  # blank line between strategy blocks for readability
     if snapshot:
-        lines += [""] + snapshot
+        lines += snapshot
     if changes:
         lines += [
             "",
             f"After trading, record it: python -m momentum confirm --universe {universe_name}",
         ]
+    lines += ["", "Decision support only — you place the trades. Not financial advice."]
     return subject, "\n".join(lines)
+
+
+def filter_to_followed(
+    reports: list[SignalReport],
+    changes: list[tuple[str, str, str]],
+    followed: str | None,
+) -> tuple[list[SignalReport], list[tuple[str, str, str]]]:
+    """Scope the email to the one strategy the user follows (MOMENTUM_STRATEGY),
+    so the monthly mail never dangles the other strategies as temptation. An
+    unset or unknown name leaves the full set — better a verbose email than a
+    silently missing signal."""
+    if followed is None or followed not in {r.strategy for r in reports}:
+        return reports, changes
+    return (
+        [r for r in reports if r.strategy == followed],
+        [c for c in changes if c[0] == followed],
+    )
 
 
 def send_email_sendgrid(cfg: EmailConfig, subject: str, body: str) -> None:
@@ -308,6 +332,14 @@ def _deliver(
     prices: pd.DataFrame,
 ) -> None:
     """Email if configured; macOS notification otherwise or on email failure."""
+    followed = os.environ.get("MOMENTUM_STRATEGY")
+    if followed and followed not in STRATEGIES:
+        print(
+            f"Warning: MOMENTUM_STRATEGY={followed!r} is not a known strategy "
+            f"({', '.join(sorted(STRATEGIES))}); emailing all strategies."
+        )
+    reports, changes = filter_to_followed(reports, changes, followed)
+
     cfg = email_config_from_env()
     if cfg is not None:
         subject, body = compose_email(

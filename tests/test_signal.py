@@ -11,6 +11,7 @@ from momentum.signal import (
     SignalReport,
     compose_email,
     email_config_from_env,
+    filter_to_followed,
     last_completed_month_end,
     strategy_explanations,
 )
@@ -84,6 +85,25 @@ def test_explanations_carry_the_readings_behind_each_decision(trending_prices):
     assert "13612W" in got["accel_momentum"]
     # Gold is flat in the fixture: its score is not positive, so vaa plays defence.
     assert "not positive -> play defence" in got["vaa"]
+
+
+def test_followed_strategy_scopes_email_to_that_strategy_only():
+    changes = [("ma_200", "VUSA.L", "VGOV.L")]
+    # The user follows vaa: ma_200's change is not their business — the email
+    # must read as "no change" so the ACTION subject only ever means *them*.
+    reports, kept = filter_to_followed(REPORTS, changes, "vaa")
+    assert [r.strategy for r in reports] == ["vaa"]
+    assert kept == []
+    subject, body = compose_email("uk", reports, kept, "2026-06-30")
+    assert subject == "Momentum (uk): no change"
+    assert "Your strategy:" in body
+    assert "ma_200" not in body
+
+
+def test_unset_or_unknown_followed_strategy_keeps_everything():
+    changes = [("ma_200", "VUSA.L", "VGOV.L")]
+    assert filter_to_followed(REPORTS, changes, None) == (REPORTS, changes)
+    assert filter_to_followed(REPORTS, changes, "not_a_strategy") == (REPORTS, changes)
 
 
 def test_email_config_requires_all_three_env_vars(monkeypatch):

@@ -74,8 +74,12 @@ or says explicitly that no action is needed — and explains each strategy's
 decision with the indicator readings behind it (price vs 200-day average,
 12-month returns, 13612W scores), plus a snapshot of trailing 1/3/12-month
 returns per asset. Explanations recompute the same indicators on the same
-truncated history the strategies saw. Delivery is presentation only: it must
-never affect the signal computation or the state file.
+truncated history the strategies saw. If `MOMENTUM_STRATEGY` is set to a
+strategy name, the email is scoped to that strategy alone — ACTION means *your*
+strategy changed, and the others are not shown (no monthly temptation to
+cherry-pick); console output and the ledger still cover all strategies.
+Delivery is presentation only: it must never affect the signal computation or
+the state file.
 
 ## Recommendation ledger (single user)
 

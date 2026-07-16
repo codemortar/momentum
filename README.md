@@ -21,7 +21,7 @@ bias, real costs, the live signal runs the exact code the backtest validated).
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-pytest                        # 43 tests, no network required
+pytest                        # 45 tests, no network required
 ```
 
 ## Usage
@@ -66,8 +66,19 @@ export MOMENTUM_EMAIL_TO="you@yourdomain"
 ```
 
 The email spells out the action per changed strategy — e.g.
-`ma_200: SELL VUSA.L, BUY VGOV.L` — plus the current holding for every strategy.
+`ma_200: SELL VUSA.L, BUY VGOV.L` — plus each strategy's holding with the
+indicator readings behind it and a market snapshot of trailing returns.
 Sending uses SendGrid's plain HTTPS API via the stdlib (no extra dependency).
+
+Once you've committed to one strategy, scope the email to it:
+
+```bash
+export MOMENTUM_STRATEGY="accel_momentum"   # optional: email only this strategy
+```
+
+Then ACTION in the subject always means *you* need to trade, and the other
+strategies aren't dangled as monthly temptation. The console and ledger still
+track all strategies.
 
 ### Example (US, 2005–2026)
 
@@ -146,6 +157,7 @@ cat > ~/momentum.env <<'EOF'
 export SENDGRID_API_KEY="SG...."
 export MOMENTUM_EMAIL_FROM="you@yourdomain"
 export MOMENTUM_EMAIL_TO="you@yourdomain"
+export MOMENTUM_STRATEGY="accel_momentum"   # optional: email only your strategy
 EOF
 chmod 600 ~/momentum.env
 ```
@@ -178,3 +190,5 @@ tests/                   synthetic-data tests (no network)
 ```
 
 See `CLAUDE.md` for the iron rules that keep it trustworthy.
+
+I follow accel_momentum; chosen 2026-07-16 for its drawdown/return trade-off; I don't re-decide this monthly
