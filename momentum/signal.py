@@ -20,8 +20,15 @@ import pandas as pd
 
 from . import config, data, ledger
 from .backtest import month_end_trading_days
-from .config import Universe
-from .strategies import STRATEGIES
+from .config import CASH, EQUITIES_INTL, EQUITIES_US, Universe
+from .strategies import (
+    MA_WINDOW,
+    MOMENTUM_LOOKBACK,
+    STRATEGIES,
+    VAA_DEFENSIVE,
+    VAA_RISK,
+    score_13612w,
+)
 
 
 @dataclass
@@ -51,7 +58,7 @@ def last_completed_month_end(index: pd.DatetimeIndex) -> pd.Timestamp:
     return actionable[-1]
 
 
-def evaluate(universe: Universe) -> tuple[list[SignalReport], pd.Timestamp]:
+def evaluate(universe: Universe) -> tuple[list[SignalReport], pd.Timestamp, pd.DataFrame]:
     prices = data.load_prices(universe)
     as_of = last_completed_month_end(prices.index)
     truncated = prices.loc[:as_of]
@@ -68,7 +75,81 @@ def evaluate(universe: Universe) -> tuple[list[SignalReport], pd.Timestamp]:
                 as_of=as_of.date().isoformat(),
             )
         )
-    return reports, as_of
+    return reports, as_of, truncated
+
+
+def strategy_explanations(prices: pd.DataFrame) -> dict[str, str]:
+    """One plain-English line per strategy: the reading behind its decision.
+    Presentation only — recomputes the same indicators the strategies use on the
+    same truncated history, so the numbers always match the decision."""
+    p_us = prices[EQUITIES_US]
+    ma = p_us.iloc[-MA_WINDOW:].mean()
+    vs_ma = p_us.iloc[-1] / ma - 1.0
+    r12 = prices.iloc[-1] / prices.iloc[-(MOMENTUM_LOOKBACK + 1)] - 1.0
+    score = score_13612w(prices)
+
+    dm_lead = EQUITIES_US if r12[EQUITIES_US] >= r12[EQUITIES_INTL] else EQUITIES_INTL
+    am_lead = EQUITIES_US if score[EQUITIES_US] >= score[EQUITIES_INTL] else EQUITIES_INTL
+    weak = [r for r in VAA_RISK if score[r] <= 0]
+    risk_txt = ", ".join(f"{r} {score[r]:+.1%}" for r in VAA_RISK)
+    defensive_txt = ", ".join(f"{r} {score[r]:+.1%}" for r in VAA_DEFENSIVE)
+
+    return {
+        "buy_and_hold": "Baseline for comparison: always 100% US equities, never trades.",
+        "ma_200": (
+            f"US equities close is {abs(vs_ma):.1%} "
+            f"{'ABOVE' if vs_ma > 0 else 'BELOW'} their 200-day average -> "
+            f"{'trend up: hold equities' if vs_ma > 0 else 'trend down: hold bonds'}."
+        ),
+        "dual_momentum": (
+            f"12-month returns: US {r12[EQUITIES_US]:+.1%}, "
+            f"intl {r12[EQUITIES_INTL]:+.1%}, cash {r12[CASH]:+.1%}. "
+            f"{dm_lead} leads"
+            + (
+                " and beats cash -> hold it."
+                if r12[dm_lead] > r12[CASH]
+                else " but does not beat cash -> hold bonds."
+            )
+        ),
+        "accel_momentum": (
+            f"13612W scores (annualized 1/3/6/12-month blend; recent months "
+            f"weigh most): US {score[EQUITIES_US]:+.1%}, "
+            f"intl {score[EQUITIES_INTL]:+.1%}, cash {score[CASH]:+.1%}. "
+            f"{am_lead} leads"
+            + (
+                " and beats cash -> hold it."
+                if score[am_lead] > score[CASH]
+                else " but does not beat cash -> hold bonds."
+            )
+        ),
+        "vaa": (
+            f"Risk-asset 13612W scores: {risk_txt}. "
+            + (
+                f"{' and '.join(weak)} not positive -> play defence: "
+                f"best of ({defensive_txt})."
+                if weak
+                else "All positive -> hold the best risk asset."
+            )
+        ),
+    }
+
+
+def market_snapshot(prices: pd.DataFrame, universe: Universe) -> list[str]:
+    """Trailing total returns per asset — context for the strategy readings."""
+    lines = [
+        "Market snapshot (total returns to the month-end above):",
+        f"  {'role':16s}{'ticker':10s}{'1m':>8s}{'3m':>8s}{'12m':>8s}",
+    ]
+    for role in prices.columns:
+        cells = []
+        for lookback in (21, 63, 253):
+            if len(prices) > lookback:
+                r = prices[role].iloc[-1] / prices[role].iloc[-(lookback + 1)] - 1.0
+                cells.append(f"{r:+8.1%}")
+            else:
+                cells.append(f"{'n/a':>8}")
+        lines.append(f"  {role:16s}{universe.tickers[role]:10s}" + "".join(cells))
+    return lines
 
 
 def _state_path(universe: Universe):
@@ -126,6 +207,8 @@ def compose_email(
     reports: list[SignalReport],
     changes: list[tuple[str, str, str]],  # (strategy, old_ticker, new_ticker)
     as_of: str,
+    explanations: dict[str, str] | None = None,
+    snapshot: list[str] | None = None,
 ) -> tuple[str, str]:
     """Build (subject, plain-text body). Pure, so tests can pin the wording."""
     if changes:
@@ -135,13 +218,21 @@ def compose_email(
 
     lines = [f"Signals as of month-end {as_of}.", ""]
     if changes:
-        lines.append("Actions:")
+        lines.append("ACTIONS — if the changed strategy is the one you follow:")
         for strategy, old_ticker, new_ticker in changes:
             lines.append(f"  * {strategy}: SELL {old_ticker}, BUY {new_ticker}")
-        lines.append("")
-    lines.append("Current holding per strategy:")
+    else:
+        lines.append(
+            "No changes this month. If you already hold your strategy's position "
+            "below, do nothing."
+        )
+    lines += ["", "What each strategy says (follow ONE; the rest are context):"]
     for r in reports:
         lines.append(f"  {r.strategy:15s} HOLD {r.ticker} ({r.role})")
+        if explanations and r.strategy in explanations:
+            lines.append(f"      {explanations[r.strategy]}")
+    if snapshot:
+        lines += [""] + snapshot
     if changes:
         lines += [
             "",
@@ -175,7 +266,7 @@ def send_email_sendgrid(cfg: EmailConfig, subject: str, body: str) -> None:
 
 def run_signal(universe_name: str, notify: bool) -> int:
     universe = config.get_universe(universe_name)
-    reports, as_of = evaluate(universe)
+    reports, as_of, truncated = evaluate(universe)
     prev = load_state(universe)
     prev_signals = prev.get("signals", {})
     prev_as_of = prev.get("as_of")
@@ -205,22 +296,28 @@ def run_signal(universe_name: str, notify: bool) -> int:
         )
 
     if notify:
-        _deliver(universe.name, reports, changes, as_of)
+        _deliver(universe, reports, changes, as_of, truncated)
 
     return 0
 
 
 def _deliver(
-    universe_name: str,
+    universe: Universe,
     reports: list[SignalReport],
     changes: list[tuple[str, str, str]],
     as_of: pd.Timestamp,
+    prices: pd.DataFrame,
 ) -> None:
     """Email if configured; macOS notification otherwise or on email failure."""
     cfg = email_config_from_env()
     if cfg is not None:
         subject, body = compose_email(
-            universe_name, reports, changes, as_of.date().isoformat()
+            universe.name,
+            reports,
+            changes,
+            as_of.date().isoformat(),
+            explanations=strategy_explanations(prices),
+            snapshot=market_snapshot(prices, universe),
         )
         try:
             send_email_sendgrid(cfg, subject, body)

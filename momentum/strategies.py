@@ -66,7 +66,7 @@ def dual_momentum(prices: pd.DataFrame) -> dict[Role, float]:
     return {BONDS: 1.0}
 
 
-def _score_13612w(prices: pd.DataFrame) -> pd.Series:
+def score_13612w(prices: pd.DataFrame) -> pd.Series:
     """13612W momentum score for every column. Zero for a flat series."""
     now = prices.iloc[-1]
     terms = [
@@ -81,7 +81,7 @@ def accel_momentum(prices: pd.DataFrame) -> dict[Role, float]:
         raise ValueError(
             f"accel_momentum needs >= {MOMENTUM_LOOKBACK + 1} rows, got {len(prices)}."
         )
-    score = _score_13612w(prices)
+    score = score_13612w(prices)
     winner = EQUITIES_US if score[EQUITIES_US] >= score[EQUITIES_INTL] else EQUITIES_INTL
     if score[winner] > score[CASH]:
         return {winner: 1.0}
@@ -91,7 +91,7 @@ def accel_momentum(prices: pd.DataFrame) -> dict[Role, float]:
 def vaa(prices: pd.DataFrame) -> dict[Role, float]:
     if len(prices) < MOMENTUM_LOOKBACK + 1:
         raise ValueError(f"vaa needs >= {MOMENTUM_LOOKBACK + 1} rows, got {len(prices)}.")
-    score = _score_13612w(prices)
+    score = score_13612w(prices)
     if all(score[r] > 0.0 for r in VAA_RISK):
         return {max(VAA_RISK, key=lambda r: score[r]): 1.0}
     return {max(VAA_DEFENSIVE, key=lambda r: score[r]): 1.0}

@@ -69,9 +69,13 @@ than buy-and-hold — not maximizing CAGR. On US data, ma_200 roughly halves the
 emails via the SendGrid v3 API (a stdlib HTTPS POST — no SDK dependency);
 otherwise, or if sending fails, it falls back to a macOS notification (a
 printed no-op on other platforms, so a Linux server run never crashes). The
-email spells out the explicit action per changed strategy ("SELL X, BUY Y").
-Delivery is presentation only: it must never affect the signal computation or
-the state file.
+email spells out the explicit action per changed strategy ("SELL X, BUY Y") —
+or says explicitly that no action is needed — and explains each strategy's
+decision with the indicator readings behind it (price vs 200-day average,
+12-month returns, 13612W scores), plus a snapshot of trailing 1/3/12-month
+returns per asset. Explanations recompute the same indicators on the same
+truncated history the strategies saw. Delivery is presentation only: it must
+never affect the signal computation or the state file.
 
 ## Recommendation ledger (single user)
 

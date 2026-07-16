@@ -21,7 +21,7 @@ bias, real costs, the live signal runs the exact code the backtest validated).
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-pytest                        # 40 tests, no network required
+pytest                        # 43 tests, no network required
 ```
 
 ## Usage

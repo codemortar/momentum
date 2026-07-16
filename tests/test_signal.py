@@ -12,6 +12,7 @@ from momentum.signal import (
     compose_email,
     email_config_from_env,
     last_completed_month_end,
+    strategy_explanations,
 )
 
 
@@ -53,6 +54,36 @@ def test_email_without_changes_lists_holdings():
     assert "SELL" not in body
     assert "HOLD VGOV.L (bonds)" in body
     assert "HOLD VUSA.L (equities_us)" in body
+
+
+def test_email_without_changes_says_do_nothing():
+    _, body = compose_email("uk", REPORTS, [], "2026-06-30")
+    assert "do nothing" in body
+
+
+def test_email_includes_explanations_and_snapshot_when_given():
+    explanations = {"ma_200": "US equities close is 4.2% ABOVE their 200-day average."}
+    snapshot = ["Market snapshot (total returns to the month-end above):", "  rows..."]
+    _, body = compose_email(
+        "uk", REPORTS, [], "2026-06-30", explanations=explanations, snapshot=snapshot
+    )
+    assert "4.2% ABOVE their 200-day average" in body
+    assert "Market snapshot" in body
+
+
+def test_explanations_carry_the_readings_behind_each_decision(trending_prices):
+    # trending_prices: US equities rising above trend and outpacing intl/cash,
+    # so the wording is known by construction.
+    got = strategy_explanations(trending_prices)
+    assert set(got) == set(
+        ["buy_and_hold", "ma_200", "dual_momentum", "accel_momentum", "vaa"]
+    )
+    assert "ABOVE" in got["ma_200"] and "hold equities" in got["ma_200"]
+    assert "12-month returns:" in got["dual_momentum"]
+    assert "beats cash -> hold it" in got["dual_momentum"]
+    assert "13612W" in got["accel_momentum"]
+    # Gold is flat in the fixture: its score is not positive, so vaa plays defence.
+    assert "not positive -> play defence" in got["vaa"]
 
 
 def test_email_config_requires_all_three_env_vars(monkeypatch):
