@@ -106,6 +106,20 @@ def test_unset_or_unknown_followed_strategy_keeps_everything():
     assert filter_to_followed(REPORTS, changes, "not_a_strategy") == (REPORTS, changes)
 
 
+def test_punt_section_is_appended_after_a_separator_when_given():
+    punt = ["PUNT OF THE MONTH — for fun only, NOT a validated signal:", "  RR.L ..."]
+    _, body = compose_email("uk", REPORTS, [], "2026-06-30", punt=punt)
+    assert "PUNT OF THE MONTH" in body
+    # Separated from the real signal, and the disclaimer still closes the email.
+    assert body.index("----") < body.index("PUNT OF THE MONTH")
+    assert body.index("PUNT OF THE MONTH") < body.index("Not financial advice")
+
+
+def test_email_has_no_punt_section_by_default():
+    _, body = compose_email("uk", REPORTS, [], "2026-06-30")
+    assert "PUNT" not in body
+
+
 def test_email_config_requires_all_three_env_vars(monkeypatch):
     for var in ("SENDGRID_API_KEY", "MOMENTUM_EMAIL_FROM", "MOMENTUM_EMAIL_TO"):
         monkeypatch.delenv(var, raising=False)

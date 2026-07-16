@@ -18,7 +18,7 @@ from dataclasses import dataclass
 
 import pandas as pd
 
-from . import config, data, ledger
+from . import config, data, ledger, punts
 from .backtest import month_end_trading_days
 from .config import CASH, EQUITIES_INTL, EQUITIES_US, Universe
 from .strategies import (
@@ -209,6 +209,7 @@ def compose_email(
     as_of: str,
     explanations: dict[str, str] | None = None,
     snapshot: list[str] | None = None,
+    punt: list[str] | None = None,
 ) -> tuple[str, str]:
     """Build (subject, plain-text body). Pure, so tests can pin the wording."""
     if changes:
@@ -244,6 +245,8 @@ def compose_email(
             "",
             f"After trading, record it: python -m momentum confirm --universe {universe_name}",
         ]
+    if punt:
+        lines += ["", "-" * 68] + punt
     lines += ["", "Decision support only — you place the trades. Not financial advice."]
     return subject, "\n".join(lines)
 
@@ -340,6 +343,15 @@ def _deliver(
         )
     reports, changes = filter_to_followed(reports, changes, followed)
 
+    punt_lines: list[str] | None = None
+    if os.environ.get("MOMENTUM_PUNT"):
+        try:
+            punt_lines = punts.punt_section()
+        except Exception as exc:
+            # The punt is a best-effort novelty (see SPEC) — a failed download
+            # or scoring error must never break the real signal.
+            punt_lines = [f"(Punt of the month unavailable this time: {exc})"]
+
     cfg = email_config_from_env()
     if cfg is not None:
         subject, body = compose_email(
@@ -349,6 +361,7 @@ def _deliver(
             as_of.date().isoformat(),
             explanations=strategy_explanations(prices),
             snapshot=market_snapshot(prices, universe),
+            punt=punt_lines,
         )
         try:
             send_email_sendgrid(cfg, subject, body)

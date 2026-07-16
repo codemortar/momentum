@@ -94,6 +94,19 @@ changes keep the previous holding). The difference is the behaviour gap. Curves
 are costless by design — costs are the backtest's job; this measures behaviour.
 The ledger is bookkeeping only: it must never influence signals or backtests.
 
+## Punt of the month (opt-in novelty — explicitly unvalidated)
+
+If `MOMENTUM_PUNT` is set in the environment, the signal email appends a
+clearly-labelled "punt of the month": the single FTSE-100 share (from a fixed,
+hardcoded candidate list) with the strongest 13612W momentum. This is
+entertainment, not a signal: single names gap through trend rules, the pick is
+not backtested and never will be, the candidate list has survivorship bias by
+construction, and the section says all of this in the email itself. It is
+fetched best-effort at delivery time (the only place outside `fetch` that may
+touch the network) and any failure degrades to a one-line notice — it must
+never break the signal. Punts are excluded from the ledger and all performance
+claims. Crypto remains out of scope entirely.
+
 ## Known limitations
 
 - **Adjusted-close drift**: yfinance re-adjusts history on each dividend, so a

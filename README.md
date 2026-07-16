@@ -21,7 +21,7 @@ bias, real costs, the live signal runs the exact code the backtest validated).
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-pytest                        # 45 tests, no network required
+pytest                        # 50 tests, no network required
 ```
 
 ## Usage
@@ -79,6 +79,14 @@ export MOMENTUM_STRATEGY="accel_momentum"   # optional: email only this strategy
 Then ACTION in the subject always means *you* need to trade, and the other
 strategies aren't dangled as monthly temptation. The console and ledger still
 track all strategies.
+
+Optionally, for entertainment only, the email can append a "punt of the month"
+(the strongest-momentum share from a fixed FTSE-100 list — explicitly
+unvalidated, see SPEC.md, and clearly labelled as such in the email):
+
+```bash
+export MOMENTUM_PUNT=1                      # optional: opt into the fun section
+```
 
 ### Example (US, 2005–2026)
 
