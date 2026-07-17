@@ -1,27 +1,44 @@
 # momentum
 
-A small, honest backtester and monthly signal tool for simple ETF trend/momentum
-strategies, built for a UK Stocks & Shares ISA (tax-free, monthly rebalance,
-zero-commission broker).
+A backtester and monthly signal tool for simple ETF momentum strategies, built
+for a UK Stocks and Shares ISA. It works out what to buy/hold/sell each month, emails me
+the result, and I place the trades.
 
-**This is a decision-support tool, not an auto-trader.** It tells you what to
-hold; you place the (roughly two-minutes-a-month) trades yourself. It does not
-touch a broker or move money. Nothing here is financial advice.
+I built this to see if simple trend-following rules beat buy-and-hold.
 
-## Why it exists
+Every decision uses only data up to the decision date and trades the next day,
+prices are never backfilled, and the live signal runs the same code the backtest
+was validated on.
 
-Momentum/trend-following is one of the most evidence-backed anomalies in finance,
-but only worth doing if it survives realistic costs and you can sit through its
-lean years. This project lets you check that on decades of data *before* risking
-anything — and its whole design is built to not lie to you about it (no lookahead
-bias, real costs, the live signal runs the exact code the backtest validated).
+## Stack and how it's built
+
+Python 3, pandas, matplotlib and yfinance. No web framework, no database and no
+install step: state is a handful of CSV and JSON files, and everything runs
+through `python -m momentum`. It runs live for me each month on a small
+DigitalOcean droplet via cron, which emails the signal through SendGrid.
+
+The core is a set of pure `prices -> weights` functions in `strategies.py` that
+both the backtest engine and the live signal call. 
+
+Features:
+
+- No lookahead. A property test feeds each strategy truncated history and checks
+  that past decisions never change when later data is added.
+- Decisions are made on the month-end close and executed the next trading day.
+- Real costs. A per-rebalance trading cost and optional annual fee, so the
+  comparison between strategies isn't a fantasy.
+- 50 fast, offline tests covering the strategy logic, backtest engine and signal
+  timing, including the property-based no-lookahead test above. No network, runs
+  in under a second.
+- The monthly job runs the whole suite first (`run_monthly.sh`) and only acts on
+  the market if it passes — a broken test aborts the run rather than trading on it.
 
 ## Setup
 
 ```bash
 python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
-pytest                        # 50 tests, no network required
+pytest
 ```
 
 ## Usage
@@ -33,9 +50,8 @@ python -m momentum fetch --universe uk
 
 # 2. Backtest and compare strategies
 python -m momentum backtest --universe us --all --plot
-#    -> comparison table + output/us_all.png (equity curves + drawdowns)
 
-# 3. See what to hold this month
+# 3. See what to buy/hold this month
 python -m momentum signal --universe uk --notify
 
 # 4. After trading (or deciding not to), tell the ledger what you did
@@ -46,9 +62,9 @@ python -m momentum ledger --universe uk
 ```
 
 Every `signal` run records its recommendations. `confirm` asks about the ones
-where a trade was actually recommended and you haven't answered; `ledger` then
-compares the strategy's path against the path you actually took (the
-**behaviour gap** — what hesitation cost you):
+where a trade was actually recommended and you haven't answered. `ledger` then
+compares the strategy's path against the path you actually took, so you can see
+what hesitating or skipping a trade actually cost:
 
 ```
   ma_200          since 2026-06-30: strategy +4.20%, you +2.90%, behaviour gap -1.30%
@@ -98,17 +114,20 @@ ma_200              9.94%  -31.05%  13.16%    0.66      30    0.16%/yr
 dual_momentum       8.21%  -33.72%  16.00%    0.47      34    0.18%/yr
 ```
 
-The headline: trend-following gives up ~1% of CAGR to roughly **halve** the worst
-drawdown (dodging most of 2008–09) and improve risk-adjusted return (Sharpe). Read
-`SPEC.md` for the rules and the honest limitations (short crashes, drift, etc.).
+The takeaway: trend-following gives up about 1% of annual return but roughly
+halves the worst drawdown, mostly by sidestepping 2008–09, and improves the
+risk-adjusted return (Sharpe). SPEC.md has the full rules and the limitations I
+know about, such as lag in fast crashes and adjusted-price drift.
 
 ## Universes
 
-- **us** — long-history US ETFs (SPY/EFA/IEF/GLD + a T-bill cash index). Deep
-  enough to span 2008 and 2020: this is what *validates* a strategy.
-- **uk** — the actual London-listed UCITS ETFs you'd buy in an ISA
-  (VUSA/VWRP/VGOV/SGLN + ERNS cash). Short history — a **sanity check** that the
-  same code runs coherently on the real instruments, not validation.
+- **us**: long-history US ETFs (SPY/EFA/IEF/GLD plus a T-bill cash index). Deep
+  enough to span 2008 and 2020, so this is the universe I use to validate a
+  strategy.
+- **uk**: the London-listed UCITS ETFs you'd actually buy in an ISA
+  (VUSA/VWRP/VGOV/SGLN plus ERNS for cash). The history is short, so it's really
+  a check that the same code runs sensibly on the real instruments rather than a
+  validation in its own right.
 
 ## Running the signal automatically (optional, manual setup)
 
@@ -124,10 +143,8 @@ because it runs jobs missed while the laptop was asleep. Create
   <key>Label</key><string>co.codemortar.momentum</string>
   <key>ProgramArguments</key>
   <array>
-    <string>/Users/christopherpolly/github/momentum/.venv/bin/python</string>
-    <string>-m</string><string>momentum</string>
-    <string>signal</string><string>--universe</string><string>uk</string>
-    <string>--notify</string>
+    <string>/Users/christopherpolly/github/momentum/run_monthly.sh</string>
+    <string>uk</string>
   </array>
   <key>WorkingDirectory</key><string>/Users/christopherpolly/github/momentum</string>
   <key>EnvironmentVariables</key>
@@ -142,8 +159,8 @@ because it runs jobs missed while the laptop was asleep. Create
 ```
 
 Then `launchctl load ~/Library/LaunchAgents/co.codemortar.momentum.plist`. It
-fires on the 1st of each month at 09:00. (It fetches cached data; add a `fetch
---refresh` step if you want fresh prices first.)
+fires on the 1st of each month at 09:00 and runs `run_monthly.sh`, which tests,
+then refreshes prices, then signals.
 
 ## Running on a server (e.g. a DigitalOcean droplet)
 
@@ -170,17 +187,20 @@ EOF
 chmod 600 ~/momentum.env
 ```
 
-Then `crontab -e` and schedule the monthly run — refresh prices first, then
-signal (times are UTC on a stock droplet):
+Then `crontab -e` and schedule the monthly run. It calls `run_monthly.sh`, which
+runs the test suite first and only fetches prices and sends the signal if the
+suite passes (times are UTC on a stock droplet):
 
 ```cron
-0 9 1 * * . $HOME/momentum.env && cd $HOME/momentum && .venv/bin/python -m momentum fetch --universe uk --refresh && .venv/bin/python -m momentum signal --universe uk --notify >> $HOME/momentum-cron.log 2>&1
+0 9 1 * * . $HOME/momentum.env && $HOME/momentum/run_monthly.sh uk >> $HOME/momentum-cron.log 2>&1
 ```
 
-The `state/` directory lives on the droplet, so change detection ("CHANGED
-from X -> Y") keeps working month to month. Check `momentum-cron.log` if an
-email ever fails to arrive — on Linux there is no notification fallback, the
-log is the record.
+`run_monthly.sh` is the pre-flight gate: because the signal drives real money,
+a broken test suite aborts the run rather than acting on it. If the tests ever
+fail, no email arrives and the reason is in `momentum-cron.log` — on Linux there
+is no notification fallback, so the log is the record. The `state/` directory
+lives on the droplet, so change detection ("CHANGED from X -> Y") keeps working
+month to month.
 
 ## Layout
 
@@ -196,7 +216,3 @@ momentum/signal.py       live signal, state file, email/macOS delivery
 momentum/ledger.py       did-you-trade ledger + strategy-vs-you performance
 tests/                   synthetic-data tests (no network)
 ```
-
-See `CLAUDE.md` for the iron rules that keep it trustworthy.
-
-I follow accel_momentum; chosen 2026-07-16 for its drawdown/return trade-off; I don't re-decide this monthly
