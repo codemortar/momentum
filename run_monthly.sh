@@ -27,4 +27,14 @@ fi
 
 echo "Tests green. Refreshing prices and computing signal..."
 "$py" -m momentum fetch  --universe "$universe" --refresh
+
+# The email's screen section reads the cache, so refresh it here (slow, network)
+# rather than in the delivery path. Best-effort: a failure must not stop the
+# signal, which is the part that actually matters.
+if [ -n "${MOMENTUM_SCREEN:-}" ]; then
+    echo "Refreshing screener fundamentals..."
+    "$py" -m momentum screen --universe "$universe" --refresh --top 5 \
+        || echo "Screen refresh failed; the email will use the previous cache." >&2
+fi
+
 "$py" -m momentum signal --universe "$universe" --notify

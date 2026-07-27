@@ -6,6 +6,7 @@ Commands:
   signal   --universe uk [--notify]
   confirm  --universe uk [--strategy NAME] [--yes | --no]
   ledger   --universe uk [--strategy NAME]
+  screen   --universe uk|us [--top N] [--near-lows] [--by-sector] [--refresh]
 """
 
 from __future__ import annotations
@@ -56,6 +57,18 @@ def _cmd_ledger(args: argparse.Namespace) -> int:
     return ledger.run_ledger(universe_name=args.universe, strategy=args.strategy)
 
 
+def _cmd_screen(args: argparse.Namespace) -> int:
+    from . import screen
+
+    return screen.run_screen(
+        universe_name=args.universe,
+        top=args.top,
+        near_lows=args.near_lows,
+        refresh=args.refresh,
+        by_sector=args.by_sector,
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="momentum", description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -102,6 +115,24 @@ def build_parser() -> argparse.ArgumentParser:
     p_lg.add_argument("--universe", default="uk", choices=sorted(config.UNIVERSES))
     p_lg.add_argument("--strategy", help="detailed table for one strategy")
     p_lg.set_defaults(func=_cmd_ledger)
+
+    p_sc = sub.add_parser(
+        "screen", help="rank shares on value, quality and balance sheet (not backtested)"
+    )
+    p_sc.add_argument("--universe", default="uk", choices=["uk", "us"])
+    p_sc.add_argument("--top", type=int, default=15, help="rows to show")
+    p_sc.add_argument(
+        "--near-lows",
+        action="store_true",
+        help="only names in the bottom third of their 52-week range",
+    )
+    p_sc.add_argument(
+        "--by-sector",
+        action="store_true",
+        help="rank each company within its own sector, not the whole universe",
+    )
+    p_sc.add_argument("--refresh", action="store_true", help="re-download fundamentals")
+    p_sc.set_defaults(func=_cmd_screen)
 
     return parser
 

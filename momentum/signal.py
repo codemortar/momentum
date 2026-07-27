@@ -18,7 +18,7 @@ from dataclasses import dataclass
 
 import pandas as pd
 
-from . import config, data, ledger, punts
+from . import config, data, ledger, punts, screen as screen_mod
 from .backtest import month_end_trading_days
 from .config import CASH, EQUITIES_INTL, EQUITIES_US, Universe
 from .strategies import (
@@ -210,6 +210,7 @@ def compose_email(
     explanations: dict[str, str] | None = None,
     snapshot: list[str] | None = None,
     punt: list[str] | None = None,
+    screen: list[str] | None = None,
 ) -> tuple[str, str]:
     """Build (subject, plain-text body). Pure, so tests can pin the wording."""
     if changes:
@@ -245,6 +246,8 @@ def compose_email(
             "",
             f"After trading, record it: python -m momentum confirm --universe {universe_name}",
         ]
+    if screen:
+        lines += ["", "-" * 68] + screen
     if punt:
         lines += ["", "-" * 68] + punt
     lines += ["", "Decision support only — you place the trades. Not financial advice."]
@@ -343,6 +346,17 @@ def _deliver(
         )
     reports, changes = filter_to_followed(reports, changes, followed)
 
+    screen_lines: list[str] | None = None
+    screen_setting = os.environ.get("MOMENTUM_SCREEN")
+    if screen_setting:
+        try:
+            # Value may be a row count ("5") or just a truthy flag.
+            top = int(screen_setting) if screen_setting.isdigit() else 5
+            screen_lines = screen_mod.screen_section(universe.name, top=top)
+        except Exception as exc:
+            # Screener output is a research extra; never break the real signal.
+            screen_lines = [f"(Screen unavailable this time: {exc})"]
+
     punt_lines: list[str] | None = None
     if os.environ.get("MOMENTUM_PUNT"):
         try:
@@ -362,6 +376,7 @@ def _deliver(
             explanations=strategy_explanations(prices),
             snapshot=market_snapshot(prices, universe),
             punt=punt_lines,
+            screen=screen_lines,
         )
         try:
             send_email_sendgrid(cfg, subject, body)

@@ -27,7 +27,7 @@ Features:
 - Decisions are made on the month-end close and executed the next trading day.
 - Real costs. A per-rebalance trading cost and optional annual fee, so the
   comparison between strategies isn't a fantasy.
-- 50 fast, offline tests covering the strategy logic, backtest engine and signal
+- 65 fast, offline tests covering the strategy logic, backtest engine and signal
   timing, including the property-based no-lookahead test above. No network, runs
   in under a second.
 - The monthly job runs the whole suite first (`run_monthly.sh`) and only acts on
@@ -60,6 +60,41 @@ python -m momentum confirm --universe uk
 # 5. How have the recommendations done — and did following them pay?
 python -m momentum ledger --universe uk
 ```
+
+### Stock screener
+
+Separate from the ETF strategies, `screen` ranks UK or US large caps on value,
+quality and balance-sheet strength to give me a shortlist worth researching:
+
+```bash
+python -m momentum screen --universe uk               # top 15 by composite score
+python -m momentum screen --universe us --top 25
+python -m momentum screen --universe uk --near-lows   # only names near 52-week lows
+python -m momentum screen --universe uk --by-sector   # rank within sector, not overall
+```
+
+```
+ticker    name                   score    P/E   P/B    ROE  Margin    D/E  Yield   52w
+--------------------------------------------------------------------------------------
+PRU.L     PRUDENTIAL PLC ORD 5    0.87    9.5   1.8    21%     28%     28   1.8%  0.55
+NWG.L     NATWEST GROUP PLC OR    0.82    9.7   1.4    14%     37%      -   4.8%  0.88
+```
+
+The score is the mean percentile rank across the factors, so 1.00 is best. **F**
+is the Piotroski F-Score: nine binary tests of financial health (profitability,
+cash generation, leverage, dilution, margin and efficiency trends) from the last
+two annual reports, shown as points scored over tests that could be evaluated —
+a bank with no gross-profit line scores out of seven rather than being marked
+down for it. `--by-sector` ranks each company against its own sector, which
+matters because a bank's price-to-book means something different from a miner's.
+
+Set `MOMENTUM_SCREEN=5` alongside the other environment variables to append the
+top five names to the monthly signal email.
+
+Unlike the strategies, this is **not backtested and makes no performance
+claim**: yfinance gives current fundamentals, not the point-in-time figures
+known at each past date, so an honest historical test would need a paid data
+subscription. It's a research funnel, not a buy list.
 
 Every `signal` run records its recommendations. `confirm` asks about the ones
 where a trade was actually recommended and you haven't answered. `ledger` then
@@ -214,5 +249,6 @@ momentum/report.py       comparison table + equity/drawdown PNG
 momentum/runner.py       CLI orchestration for backtests
 momentum/signal.py       live signal, state file, email/macOS delivery
 momentum/ledger.py       did-you-trade ledger + strategy-vs-you performance
+momentum/screen.py       fundamental stock screener (research tool, not a signal)
 tests/                   synthetic-data tests (no network)
 ```

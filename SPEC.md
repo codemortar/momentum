@@ -107,6 +107,40 @@ touch the network) and any failure degrades to a one-line notice — it must
 never break the signal. Punts are excluded from the ledger and all performance
 claims. Crypto remains out of scope entirely.
 
+## Stock screener (research tool, not a signal)
+
+`screen` ranks a fixed universe of UK or US large caps on a composite of value
+(P/E, P/B, EV/EBITDA), quality (ROE, profit margin, Piotroski F-Score) and
+balance-sheet safety (current ratio, debt/equity), each as a cross-sectional
+percentile rank so 1.0 is best. Position in the 52-week range is displayed, and
+`--near-lows` filters to the bottom third of that range. Non-positive value
+ratios are dropped rather than ranked (a loss-making company is not "cheap"),
+and a company needs at least four factors present to be scored at all.
+
+`--by-sector` ranks each company against its own sector rather than the whole
+universe, since a bank's price-to-book is not comparable to a miner's. Sectors
+with fewer than four members fall back to universe-wide ranking rather than
+handing a lone company a free top rank.
+
+The **F-Score** is Piotroski's nine binary tests (profitability, leverage,
+liquidity, dilution, margin and asset-turnover trends) computed from the last
+two annual reports. Tests whose inputs are missing are skipped, not failed, so
+it reports points scored out of tests evaluable — a bank with no gross-profit
+line scores out of seven rather than being marked down. It only contributes to
+the composite when at least five signals were evaluable.
+
+If `MOMENTUM_SCREEN` is set, the monthly signal email appends the top-scoring
+names (the value may be a row count). The email section reads the cache only:
+the delivery path must never depend on a multi-minute network fetch, so
+`run_monthly.sh` refreshes the screen cache beforehand, best-effort.
+
+This is deliberately outside the backtest's guarantees: yfinance serves current
+fundamentals, not point-in-time figures as known at each past date, so an honest
+historical test is impossible without paid data. The screener therefore makes no
+performance claim, is excluded from the ledger, and prints that caveat with
+every run. Its cache stores the raw API response; cleaning happens on read, so
+fixing a cleaning rule also repairs existing caches.
+
 ## Known limitations
 
 - **Adjusted-close drift**: yfinance re-adjusts history on each dividend, so a

@@ -120,6 +120,22 @@ def test_email_has_no_punt_section_by_default():
     assert "PUNT" not in body
 
 
+def test_screen_section_sits_between_the_signal_and_the_punt():
+    screen = ["SCREEN — cheapest/healthiest UK large caps (data 2026-07-27).", "  AZN.L"]
+    punt = ["PUNT OF THE MONTH — for fun only, NOT a validated signal:"]
+    _, body = compose_email(
+        "uk", REPORTS, [], "2026-06-30", punt=punt, screen=screen
+    )
+    # Order matters: the actionable signal first, then research, then novelty.
+    assert body.index("HOLD VGOV.L") < body.index("SCREEN —")
+    assert body.index("SCREEN —") < body.index("PUNT OF THE MONTH")
+
+
+def test_email_has_no_screen_section_by_default():
+    _, body = compose_email("uk", REPORTS, [], "2026-06-30")
+    assert "SCREEN" not in body
+
+
 def test_email_config_requires_all_three_env_vars(monkeypatch):
     for var in ("SENDGRID_API_KEY", "MOMENTUM_EMAIL_FROM", "MOMENTUM_EMAIL_TO"):
         monkeypatch.delenv(var, raising=False)
