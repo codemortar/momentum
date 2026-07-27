@@ -11,11 +11,14 @@ pip install -r requirements.txt
 pytest                                             # all tests, no network
 
 python -m momentum fetch    --universe us|uk [--refresh]
-python -m momentum backtest --universe us [--strategy NAME | --all] [--cost-bps N] [--fee-bps N] [--plot]
+python -m momentum backtest --universe us [--strategy NAME | --all] [--cost-bps N] [--fee-bps N] [--plot] [--tranches N] [--buffer-bps N]
 python -m momentum signal   --universe uk [--notify]
 python -m momentum confirm  --universe uk [--strategy NAME] [--yes | --no]
 python -m momentum ledger   --universe uk [--strategy NAME]
 python -m momentum screen   --universe uk|us [--top N] [--near-lows] [--by-sector] [--refresh]
+python -m momentum walkforward --universe us [--select strategies|buffers] [--strategy NAME]
+python -m momentum punt     add|close|list [--ticker X --amount N --thesis "..."]
+
 ```
 
 ## Architecture in five lines

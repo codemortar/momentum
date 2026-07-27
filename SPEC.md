@@ -141,6 +141,68 @@ performance claim, is excluded from the ledger, and prints that caveat with
 every run. Its cache stores the raw API response; cleaning happens on read, so
 fixing a cleaning rule also repairs existing caches.
 
+## Robustness options (tranching and buffers)
+
+Both are backtest options, off by default, so the effect of each is measurable
+against the plain result rather than silently baked in.
+
+- **`--tranches N`** splits capital across N equal slices rebalanced on monthly
+  schedules offset by a fraction of a month, and averages them. This removes
+  *rebalance timing luck*: the arbitrary dependence on trading at month-end
+  rather than mid-month. It generally lowers volatility, and it can make a
+  drawdown look *worse* — that is the point, not a bug. A single-schedule
+  drawdown that improves under tranching was partly luck.
+- **`--buffer-bps N`** requires a challenger to beat the current holding by N
+  basis points of the strategy's own preference score before switching. Buffered
+  strategies take `(prices, held)`; the engine threads the holding through in
+  date order, which is not lookahead because the holding derives only from
+  earlier decisions. Margins are in the strategy's own units: annualized return
+  for the momentum strategies, distance from the moving average for `ma_200`.
+
+Any margin chosen from a backtest must be checked for **parameter sensitivity**
+before it is trusted: a result that is good at one margin and poor at the
+margins either side is a fluke, not an effect. On US data `ma_200` at 200bps
+looks outstanding and its neighbours at 100 and 300bps do not — that spike is
+noise. `accel_momentum` improves smoothly across the whole range, which is more
+credible, though partly confounded by a mostly-rising equity market over the
+sample.
+
+## Walk-forward analysis
+
+`walkforward` answers the question a comparison table cannot: would *choosing*
+as you went have worked? It selects the best candidate on a rolling in-sample
+window (5 years by default, by Sharpe), applies that choice to the next
+out-of-sample year, rolls forward, and stitches the out-of-sample years into
+one curve. Candidates are either the strategies (`--select strategies`) or the
+buffer margins for one strategy (`--select buffers --strategy NAME`).
+
+Selection reads only the in-sample window; out-of-sample returns come from
+decisions the strategy would have made live, which is why candidate curves can
+be computed once over the full history and sliced (the no-lookahead property
+test is what makes that valid).
+
+The report prints the stitched result against each candidate held throughout
+the same span, the number of times the selection changed, and the gap to the
+hindsight best. Frequent churn plus a large gap means the in-sample winner was
+noise. On US data, selecting `ma_200`'s buffer margin this way churns five
+times and lands 2.74%/yr behind the hindsight-best 200bps — confirming that
+spike could not have been captured in advance.
+
+## Punt book (individual stock positions)
+
+`punt add|close|list` logs discretionary single-stock bets and scores each one
+against what the same money would have done in the strategy being followed over
+exactly the same days. A thesis is required to open a position, so the reason
+is recorded before the outcome is known rather than reconstructed afterwards.
+
+Kept in `state/punts.json`, entirely separate from the strategy ledger: a good
+punt is not evidence the system works and a bad one is not evidence it fails,
+so punts never enter the ledger, the backtest, or any performance claim.
+
+Entry prices are fetched **as of the purchase date**, not the current date, so
+a backdated position shows its real gain or loss. Positions in the same ticker
+stay separate rather than being averaged, and closing is first-in-first-out.
+
 ## Known limitations
 
 - **Adjusted-close drift**: yfinance re-adjusts history on each dividend, so a

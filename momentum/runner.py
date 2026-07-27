@@ -6,8 +6,8 @@ piece stays small and independently testable.
 
 from __future__ import annotations
 
-from . import config, data, metrics, report
-from .backtest import BacktestResult, run
+from . import buffers, config, data, metrics, report
+from .backtest import BacktestResult, run_tranched
 from .config import CostModel
 from .strategies import STRATEGIES
 
@@ -18,6 +18,8 @@ def run_backtest(
     cost_bps: float,
     fee_bps: float,
     plot: bool,
+    tranches: int = 1,
+    buffer_bps: float = 0.0,
 ) -> int:
     universe = config.get_universe(universe_name)
     prices = data.load_prices(universe)
@@ -31,29 +33,46 @@ def run_backtest(
             return 2
         names = [strategy]
 
-    results: list[BacktestResult] = [
-        run(prices, STRATEGIES[name], name, costs) for name in names
-    ]
+    margin = buffer_bps / 1e4
+
+    def strategy_fn(name: str):
+        if margin <= 0:
+            return STRATEGIES[name]
+        return buffers.buffered_strategy(name, STRATEGIES[name], margin)
+
+    def backtest(name: str, cost_model: CostModel) -> BacktestResult:
+        return run_tranched(prices, strategy_fn(name), name, cost_model, tranches)
+
+    results: list[BacktestResult] = [backtest(name, costs) for name in names]
 
     # Zero-cost counterfactual, only to report the honest annual cost drag on CAGR.
     free = CostModel(trade_cost_bps=0.0, annual_fee_bps=0.0)
     cost_drag = {
-        name: metrics.cagr(run(prices, STRATEGIES[name], name, free).equity_curve)
+        name: metrics.cagr(backtest(name, free).equity_curve)
         - metrics.cagr(res.equity_curve)
         for name, res in zip(names, results)
     }
 
     span = results[0].equity_curve.index
+    extras = ""
+    if tranches > 1:
+        extras += f"   Tranches: {tranches}"
+    if margin > 0:
+        extras += f"   Buffer: {buffer_bps:.0f}bps"
     header = (
         f"Universe: {universe.name}   Period: {span[0].date()} -> {span[-1].date()}   "
         f"Cost: {cost_bps:.0f}bps/trade, {fee_bps:.0f}bps/yr fee   "
-        f"Data cached: {data.cache_date(universe)}"
+        f"Data cached: {data.cache_date(universe)}{extras}"
     )
     print(report.comparison_table(results, prices["cash"], header, cost_drag))
 
     if plot:
         config.OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
         suffix = "all" if strategy is None else strategy
+        if tranches > 1:
+            suffix += f"_t{tranches}"
+        if margin > 0:
+            suffix += f"_b{buffer_bps:.0f}"
         out = config.OUTPUT_DIR / f"{universe.name}_{suffix}.png"
         report.save_plot(results, out, title=f"{universe.name} — {suffix}")
         print(f"\nSaved plot: {out}")

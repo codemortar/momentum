@@ -27,7 +27,7 @@ Features:
 - Decisions are made on the month-end close and executed the next trading day.
 - Real costs. A per-rebalance trading cost and optional annual fee, so the
   comparison between strategies isn't a fantasy.
-- 65 fast, offline tests covering the strategy logic, backtest engine and signal
+- 110 fast, offline tests covering the strategy logic, backtest engine and signal
   timing, including the property-based no-lookahead test above. No network, runs
   in under a second.
 - The monthly job runs the whole suite first (`run_monthly.sh`) and only acts on
@@ -50,6 +50,10 @@ python -m momentum fetch --universe uk
 
 # 2. Backtest and compare strategies
 python -m momentum backtest --universe us --all --plot
+python -m momentum backtest --universe us --all --tranches 4 --buffer-bps 300
+
+# 2b. Would choosing a strategy as you went have worked? (walk-forward)
+python -m momentum walkforward --universe us --select strategies
 
 # 3. See what to buy/hold this month
 python -m momentum signal --universe uk --notify
@@ -60,6 +64,31 @@ python -m momentum confirm --universe uk
 # 5. How have the recommendations done — and did following them pay?
 python -m momentum ledger --universe uk
 ```
+
+### Punt book
+
+Individual stock bets, kept completely separate from the ETF strategy and
+scored against it, so I find out whether my own picks are actually any good:
+
+```bash
+python -m momentum punt add --ticker PRU.L --amount 500 \
+    --thesis "top of the value+quality screen" --trigger "F-score drops below 4"
+python -m momentum punt list
+python -m momentum punt close --ticker PRU.L
+```
+
+```
+  ticker    opened         amount   return accel_moment       vs
+  PRU.L     2026-04-01        500    +0.6%        +3.4%    -2.9%
+      thesis: top of the value+quality screen
+  HLMA.L    2026-05-01        300   -21.1%        +4.4%   -25.5%
+
+  Punt pot: 800 in, worth 739 (-7.6%).
+  Same money in accel_momentum: 830 (+3.8%) — the system is ahead.
+```
+
+A thesis is required, so the reason is on record before the outcome is known.
+Punts never touch the strategy ledger or any backtest figure.
 
 ### Stock screener
 
@@ -249,6 +278,9 @@ momentum/report.py       comparison table + equity/drawdown PNG
 momentum/runner.py       CLI orchestration for backtests
 momentum/signal.py       live signal, state file, email/macOS delivery
 momentum/ledger.py       did-you-trade ledger + strategy-vs-you performance
+momentum/buffers.py      trade buffers: don't switch unless clearly better
+momentum/walkforward.py  would choosing as you went have worked?
 momentum/screen.py       fundamental stock screener (research tool, not a signal)
+momentum/punt_ledger.py  individual stock bets, scored against the strategy
 tests/                   synthetic-data tests (no network)
 ```

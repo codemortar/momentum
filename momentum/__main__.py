@@ -7,6 +7,9 @@ Commands:
   confirm  --universe uk [--strategy NAME] [--yes | --no]
   ledger   --universe uk [--strategy NAME]
   screen   --universe uk|us [--top N] [--near-lows] [--by-sector] [--refresh]
+  walkforward --universe us [--select strategies|buffers] [--strategy NAME]
+              [--train-years N] [--test-years N] [--tranches N] [--metric sharpe|cagr]
+  punt     add|close|list  (individual stock bets, tracked outside the strategy)
 """
 
 from __future__ import annotations
@@ -33,6 +36,8 @@ def _cmd_backtest(args: argparse.Namespace) -> int:
         cost_bps=args.cost_bps,
         fee_bps=args.fee_bps,
         plot=args.plot,
+        tranches=args.tranches,
+        buffer_bps=args.buffer_bps,
     )
 
 
@@ -69,6 +74,38 @@ def _cmd_screen(args: argparse.Namespace) -> int:
     )
 
 
+def _cmd_walkforward(args: argparse.Namespace) -> int:
+    from . import walkforward
+
+    return walkforward.run_walkforward(
+        universe_name=args.universe,
+        select=args.select,
+        strategy=args.strategy,
+        train_years=args.train_years,
+        test_years=args.test_years,
+        cost_bps=args.cost_bps,
+        fee_bps=args.fee_bps,
+        tranches=args.tranches,
+        metric=args.metric,
+    )
+
+
+def _cmd_punt(args: argparse.Namespace) -> int:
+    from . import punt_ledger
+
+    return punt_ledger.run_punt(
+        action=args.action,
+        universe_name=args.universe,
+        strategy=args.strategy,
+        ticker=args.ticker,
+        amount=args.amount,
+        price=args.price,
+        thesis=args.thesis,
+        trigger=args.trigger,
+        date=args.date,
+    )
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="momentum", description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -86,6 +123,18 @@ def build_parser() -> argparse.ArgumentParser:
     p_bt.add_argument("--cost-bps", type=float, default=10.0)
     p_bt.add_argument("--fee-bps", type=float, default=0.0)
     p_bt.add_argument("--plot", action="store_true", help="save equity/drawdown PNG")
+    p_bt.add_argument(
+        "--tranches",
+        type=int,
+        default=1,
+        help="split capital across N offset monthly schedules (removes timing luck)",
+    )
+    p_bt.add_argument(
+        "--buffer-bps",
+        type=float,
+        default=0.0,
+        help="only switch when the challenger beats the holding by this margin",
+    )
     p_bt.set_defaults(func=_cmd_backtest)
 
     p_sig = sub.add_parser("signal", help="show current month's holdings signal")
@@ -133,6 +182,42 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_sc.add_argument("--refresh", action="store_true", help="re-download fundamentals")
     p_sc.set_defaults(func=_cmd_screen)
+
+    p_wf = sub.add_parser(
+        "walkforward",
+        help="test whether choosing a strategy/parameter as you go would have worked",
+    )
+    p_wf.add_argument("--universe", default="us", choices=sorted(config.UNIVERSES))
+    p_wf.add_argument(
+        "--select",
+        default="strategies",
+        choices=["strategies", "buffers"],
+        help="what to choose between at each step",
+    )
+    p_wf.add_argument(
+        "--strategy", help="strategy whose buffer margin to select (--select buffers)"
+    )
+    p_wf.add_argument("--train-years", type=int, default=5)
+    p_wf.add_argument("--test-years", type=int, default=1)
+    p_wf.add_argument("--tranches", type=int, default=1)
+    p_wf.add_argument("--cost-bps", type=float, default=10.0)
+    p_wf.add_argument("--fee-bps", type=float, default=0.0)
+    p_wf.add_argument("--metric", default="sharpe", choices=["sharpe", "cagr"])
+    p_wf.set_defaults(func=_cmd_walkforward)
+
+    p_pt = sub.add_parser(
+        "punt", help="log individual stock bets and score them against your strategy"
+    )
+    p_pt.add_argument("action", choices=["add", "close", "list"])
+    p_pt.add_argument("--universe", default="uk", choices=sorted(config.UNIVERSES))
+    p_pt.add_argument("--strategy", help="benchmark strategy (default: MOMENTUM_STRATEGY)")
+    p_pt.add_argument("--ticker")
+    p_pt.add_argument("--amount", type=float, help="money committed")
+    p_pt.add_argument("--price", type=float, help="your actual fill (default: fetch)")
+    p_pt.add_argument("--thesis", help="why you are buying — required to add")
+    p_pt.add_argument("--trigger", default="", help="what would make you sell")
+    p_pt.add_argument("--date", help="ISO date (default: today)")
+    p_pt.set_defaults(func=_cmd_punt)
 
     return parser
 
