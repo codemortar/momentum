@@ -28,7 +28,7 @@ from pandas.tseries.offsets import DateOffset
 from . import buffers, config, data, metrics
 from .backtest import run_tranched
 from .config import CostModel
-from .strategies import STRATEGIES
+from .strategies import STRATEGIES, runnable_strategies
 
 
 @dataclass(frozen=True)
@@ -75,9 +75,15 @@ def make_folds(
     return folds
 
 
-def strategy_candidates() -> dict:
-    """Every strategy, as a selection problem: which one should I be running?"""
-    return dict(STRATEGIES)
+def strategy_candidates(available_roles=None) -> dict:
+    """Every strategy, as a selection problem: which one should I be running?
+
+    Restricted to those a universe can actually support — the long-history
+    universes trade breadth for depth and lack some roles.
+    """
+    if available_roles is None:
+        return dict(STRATEGIES)
+    return {name: STRATEGIES[name] for name in runnable_strategies(available_roles)}
 
 
 def buffer_candidates(strategy_name: str, margins_bps=(0, 100, 200, 300, 500, 800)) -> dict:
@@ -197,14 +203,19 @@ def format_report(result: WalkForwardResult, prices: pd.DataFrame) -> str:
         lines.append(row(f"always {label}", c))
 
     best_label = max(held, key=lambda k: metrics.cagr(held[k]))
-    wf_cagr = metrics.cagr(curve)
-    gap = wf_cagr - metrics.cagr(held[best_label])
+    gap = metrics.cagr(curve) - metrics.cagr(held[best_label])
+    verdict = (
+        f"  Walk-forward beat every fixed choice, including '{best_label}', "
+        f"by {gap:.2%}/yr."
+        if gap > 0
+        else f"  Best in hindsight was '{best_label}'; walk-forward gave up "
+        f"{-gap:.2%}/yr of CAGR against it."
+    )
     lines += [
         "",
         f"  Selection changed {result.churn} time(s) across "
         f"{len(result.folds)} folds.",
-        f"  Best in hindsight was '{best_label}'; walk-forward gave up "
-        f"{-gap:.2%}/yr of CAGR against it.",
+        verdict,
         "",
         "  Hindsight is not available in advance — the walk-forward row is the",
         "  honest estimate. Frequent churn plus a large gap means the in-sample",
@@ -236,7 +247,13 @@ def run_walkforward(
         candidates = buffer_candidates(name)
         what = f"buffer margin for {name}"
     else:
-        candidates = strategy_candidates()
+        candidates = strategy_candidates(prices.columns)
+        skipped = sorted(set(STRATEGIES) - set(candidates))
+        if skipped:
+            print(
+                f"Skipping {', '.join(skipped)}: universe '{universe.name}' "
+                "lacks the roles they need."
+            )
         what = "strategy"
 
     try:

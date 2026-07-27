@@ -104,3 +104,22 @@ STRATEGIES = {
     "accel_momentum": accel_momentum,
     "vaa": vaa,
 }
+
+# Which roles each strategy actually reads. Universes that trade off breadth for
+# history (see config: 'us_long' drops gold and international to reach 1980)
+# cannot run every strategy, and callers should skip rather than crash.
+REQUIRED_ROLES: dict[str, frozenset[Role]] = {
+    "buy_and_hold": frozenset({EQUITIES_US}),
+    "ma_200": frozenset({EQUITIES_US, BONDS}),
+    "dual_momentum": frozenset({EQUITIES_US, EQUITIES_INTL, BONDS, CASH}),
+    "accel_momentum": frozenset({EQUITIES_US, EQUITIES_INTL, BONDS, CASH}),
+    "vaa": frozenset({EQUITIES_US, EQUITIES_INTL, GOLD, BONDS, CASH}),
+}
+
+
+def runnable_strategies(available_roles) -> list[str]:
+    """Strategy names whose required roles are all present in a universe."""
+    roles = frozenset(available_roles)
+    return [
+        name for name in STRATEGIES if REQUIRED_ROLES[name].issubset(roles)
+    ]

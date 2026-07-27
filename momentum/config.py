@@ -9,7 +9,7 @@ universes.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 # --- Paths (repo-relative, so runs are reproducible from anywhere) -----------
@@ -31,11 +31,25 @@ CASH = "cash"
 
 @dataclass(frozen=True)
 class Universe:
-    """A named set of assets, mapping each semantic role to a yfinance ticker."""
+    """A named set of assets, mapping each semantic role to a yfinance ticker.
+
+    `history` optionally names older proxies for a role, newest first. ETFs are
+    young — GLD starts in 2004, IEF in 2002 — so a backtest limited to them
+    never sees a real bear market beyond 2008. Splicing older total-return
+    mutual funds on behind each ETF buys back decades (see data.splice_series).
+    """
 
     name: str
     tickers: dict[Role, str]
     start: str  # earliest date to fetch, ISO format
+    history: dict[Role, tuple[str, ...]] = field(default_factory=dict)
+
+    def all_tickers(self) -> list[str]:
+        """Every symbol this universe needs downloaded, primaries and proxies."""
+        out = list(self.tickers.values())
+        for chain in self.history.values():
+            out.extend(chain)
+        return out
 
 
 @dataclass(frozen=True)
@@ -46,10 +60,12 @@ class CostModel:
     annual_fee_bps: float = 0.0   # optional fund fee drag, applied daily
 
 
-# Warmup: strategies need up to ~12 months of history before their first valid
-# decision (dual momentum uses a 253-trading-day lookback). The engine will not
-# make decisions until at least this many rows are available.
-WARMUP_DAYS = 253
+# Warmup: the number of rows a strategy needs before its first valid decision.
+# Dual momentum compares today against 253 trading days ago, so it needs 254
+# rows — the lookback plus the starting bar. The engine makes no decision until
+# at least this many are available. (Off-by-one here is easy to miss: a universe
+# only trips it when a month-end falls on exactly the boundary day.)
+WARMUP_DAYS = 254
 
 
 UNIVERSES: dict[str, Universe] = {
@@ -81,6 +97,45 @@ UNIVERSES: dict[str, Universe] = {
             CASH: "ERNS.L",  # iShares £ Ultrashort Bond — GBP cash-like, history to 2013
         },
         start="2012-01-01",
+    ),
+    # Extended US: the same roles, with older total-return mutual funds spliced
+    # in behind each ETF. Gold is the binding constraint (no free daily
+    # total-return series before the 2000 futures contract), so this starts
+    # around 2000 — which is enough to include the dot-com bear market that the
+    # plain 'us' universe misses entirely.
+    "us_ext": Universe(
+        name="us_ext",
+        tickers={
+            EQUITIES_US: "SPY",
+            EQUITIES_INTL: "EFA",
+            BONDS: "IEF",
+            GOLD: "GLD",
+            CASH: "^IRX",
+        },
+        start="1980-01-01",
+        history={
+            EQUITIES_US: ("VFINX",),    # Vanguard 500 Index fund, 1980
+            EQUITIES_INTL: ("VGTSX",),  # Vanguard Total International, 1996
+            BONDS: ("FGOVX",),          # Fidelity Government Income, 1980
+            GOLD: ("GC=F",),            # gold futures, 2000
+        },
+    ),
+    # Long US: drops gold and international, the two roles with no deep free
+    # history, in exchange for reaching back to 1980 — covering 1987, the early
+    # 1990s and the dot-com bust. Only strategies that need just US equities,
+    # bonds and cash can run here (see strategies.REQUIRED_ROLES).
+    "us_long": Universe(
+        name="us_long",
+        tickers={
+            EQUITIES_US: "SPY",
+            BONDS: "IEF",
+            CASH: "^IRX",
+        },
+        start="1980-01-01",
+        history={
+            EQUITIES_US: ("VFINX",),
+            BONDS: ("FGOVX",),
+        },
     ),
 }
 

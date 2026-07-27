@@ -27,7 +27,7 @@ Features:
 - Decisions are made on the month-end close and executed the next trading day.
 - Real costs. A per-rebalance trading cost and optional annual fee, so the
   comparison between strategies isn't a fantasy.
-- 110 fast, offline tests covering the strategy logic, backtest engine and signal
+- 112 fast, offline tests covering the strategy logic, backtest engine and signal
   timing, including the property-based no-lookahead test above. No network, runs
   in under a second.
 - The monthly job runs the whole suite first (`run_monthly.sh`) and only acts on
@@ -192,6 +192,23 @@ know about, such as lag in fast crashes and adjusted-price drift.
   (VUSA/VWRP/VGOV/SGLN plus ERNS for cash). The history is short, so it's really
   a check that the same code runs sensibly on the real instruments rather than a
   validation in its own right.
+- **us_ext** and **us_long**: the same roles with older total-return mutual
+  funds spliced in behind each ETF (SPY←VFINX, IEF←FGOVX and so on), reaching
+  back to ~2000 and 1980 respectively. ETFs are too young to have lived through
+  much: without this, no backtest here sees a bear market before 2008.
+  `us_long` drops gold and international, which have no deep free history, to
+  get back to 1980; strategies needing those roles are skipped rather than run
+  on data that doesn't exist.
+
+Longer history changes the conclusions materially. Over 2005–2026 `ma_200`
+looks like it costs about 1% of annual return for its lower drawdown; measured
+from 1981 it gave up nothing at all:
+
+```
+us_long, 1981-2026     CAGR    MaxDD     Vol  Sharpe
+buy_and_hold         11.04%  -55.19%  18.07%    0.46
+ma_200               11.11%  -33.08%  13.63%    0.56
+```
 
 ## Running the signal automatically (optional, manual setup)
 

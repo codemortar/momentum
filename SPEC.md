@@ -25,6 +25,31 @@ strategy. The UK universe is the actual instruments I would buy; its short
 history makes it a **sanity check that the same code runs coherently**, not
 validation.
 
+### Extended history (us_ext, us_long)
+
+ETFs are young — GLD begins in 2004, IEF in 2002 — so an ETF-only backtest
+never sees a bear market before 2008. Two further universes splice older
+total-return **mutual funds** in behind each ETF (index tickers like `^GSPC`
+are price-only and would understate returns by the dividend yield):
+
+| Universe  | Roles | Reaches | Buys back |
+|-----------|-------|---------|-----------|
+| `us_ext`  | all five | ~2000 | the dot-com bear market |
+| `us_long` | US equities, bonds, cash | 1980 | 1987, the early 90s, dot-com |
+
+Chains: SPY←VFINX, EFA←VGTSX, IEF←FGOVX, GLD←GC=F. `us_long` deliberately drops
+gold and international — neither has deep free daily total-return history — to
+reach 1980; strategies needing those roles are skipped, not crashed
+(`strategies.REQUIRED_ROLES`).
+
+Splicing rescales the older series to meet the newer at their first overlapping
+date. Only *levels* are rescaled, never returns, so no lookahead is introduced:
+a constant factor cannot change a ratio of adjacent prices. Caveats: the funds
+carry their own fees and tracking differences, so spliced returns approximate
+the ETF's; and the cache records the earliest date each ticker was fetched
+from, because a symbol first cached for a short universe would otherwise
+silently cap a longer one.
+
 ## Strategies
 
 - **buy_and_hold** — always 100% US equities. The baseline to beat (on a

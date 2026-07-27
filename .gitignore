@@ -1,7 +1,7 @@
 .venv/
 __pycache__/
 *.pyc
-data/cache/*.csv
+data/cache/
 output/*.png
 state/*.json
 .pytest_cache/

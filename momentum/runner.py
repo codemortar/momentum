@@ -9,7 +9,7 @@ from __future__ import annotations
 from . import buffers, config, data, metrics, report
 from .backtest import BacktestResult, run_tranched
 from .config import CostModel
-from .strategies import STRATEGIES
+from .strategies import REQUIRED_ROLES, STRATEGIES, runnable_strategies
 
 
 def run_backtest(
@@ -25,11 +25,28 @@ def run_backtest(
     prices = data.load_prices(universe)
     costs = CostModel(trade_cost_bps=cost_bps, annual_fee_bps=fee_bps)
 
+    available = runnable_strategies(prices.columns)
     if strategy is None:
-        names = list(STRATEGIES)
+        names = available
+        skipped = [n for n in STRATEGIES if n not in available]
+        if skipped:
+            missing = sorted(
+                set().union(*(REQUIRED_ROLES[n] for n in skipped)) - set(prices.columns)
+            )
+            print(
+                f"Skipping {', '.join(skipped)}: universe '{universe.name}' has no "
+                f"{', '.join(missing)}.\n"
+            )
     else:
         if strategy not in STRATEGIES:
             print(f"Unknown strategy {strategy!r}. Choose from {sorted(STRATEGIES)}.")
+            return 2
+        if strategy not in available:
+            missing = sorted(REQUIRED_ROLES[strategy] - set(prices.columns))
+            print(
+                f"{strategy!r} needs {', '.join(missing)}, which universe "
+                f"'{universe.name}' does not have."
+            )
             return 2
         names = [strategy]
 

@@ -24,6 +24,40 @@ def _cache_path(ticker: str) -> "config.Path":
     return config.CACHE_DIR / f"{safe}.csv"
 
 
+def _meta_path() -> "config.Path":
+    return config.CACHE_DIR / "_fetch_meta.json"
+
+
+def _load_meta() -> dict:
+    """Earliest date each cached ticker was requested from.
+
+    The cache is keyed by ticker alone, so without this a symbol first fetched
+    for a short universe would silently cap a longer one — 'us' fetches ^IRX
+    from 2000, and 'us_long' asking for 1980 would quietly get 2000 anyway.
+    """
+    import json
+
+    path = _meta_path()
+    if not path.exists():
+        return {}
+    try:
+        return json.loads(path.read_text())
+    except ValueError:
+        return {}
+
+
+def _save_meta(meta: dict) -> None:
+    import json
+
+    config.CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    _meta_path().write_text(json.dumps(meta, indent=2, sort_keys=True))
+
+
+def _cache_is_deep_enough(symbol: str, meta: dict, start: str) -> bool:
+    """Whether the cached copy already reaches back as far as `start`."""
+    return symbol in meta and meta[symbol] <= start
+
+
 def _download(ticker: str, start: str) -> pd.Series:
     """Download one ticker's adjusted-close series from yfinance."""
     import yfinance as yf
@@ -53,14 +87,22 @@ def fetch(universe: Universe, refresh: bool = False) -> None:
     re-applies dividend adjustments — an accepted, documented property).
     """
     config.CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    meta = _load_meta()
     for role, ticker in universe.tickers.items():
-        path = _cache_path(ticker)
-        if path.exists() and not refresh:
-            print(f"  cached   {role:14s} {ticker}")
-            continue
-        print(f"  download {role:14s} {ticker} ...", flush=True)
-        series = _download(ticker, universe.start)
-        series.to_csv(path, header=True)
+        chain = (ticker,) + universe.history.get(role, ())
+        for symbol in chain:
+            path = _cache_path(symbol)
+            label = role if symbol == ticker else f"{role} (older)"
+            deep_enough = _cache_is_deep_enough(symbol, meta, universe.start)
+            if path.exists() and deep_enough and not refresh:
+                print(f"  cached   {label:22s} {symbol}")
+                continue
+            why = "" if not path.exists() or refresh else " (need more history)"
+            print(f"  download {label:22s} {symbol}{why} ...", flush=True)
+            series = _download(symbol, universe.start)
+            series.to_csv(path, header=True)
+            meta[symbol] = universe.start
+    _save_meta(meta)
 
 
 def _load_series(ticker: str) -> pd.Series:
@@ -84,6 +126,39 @@ def _cash_index_from_rate(rate_pct: pd.Series) -> pd.Series:
     return (1.0 + daily).cumprod()
 
 
+def splice_series(recent: pd.Series, older: pd.Series) -> pd.Series:
+    """Extend `recent` backwards using `older`'s returns.
+
+    Both are total-return series on arbitrary scales, so the older one is
+    rescaled to meet the newer at their first overlapping date and the newer
+    takes over from there. Only *levels* are rescaled — every daily return in
+    the result is the return its own source actually recorded, and a constant
+    scale factor cannot change a ratio of adjacent prices. So this introduces
+    no lookahead: a strategy reading the spliced history on any past date sees
+    the same returns it would have seen live.
+
+    Returns `recent` unchanged when there is no overlap to anchor on, rather
+    than joining two series at an arbitrary level and inventing a jump.
+    """
+    overlap = older.index.intersection(recent.index)
+    if overlap.empty:
+        return recent.sort_index()
+    join = overlap.min()
+    if older.loc[join] == 0:
+        return recent.sort_index()
+    factor = recent.loc[join] / older.loc[join]
+    before = older.loc[older.index < join] * factor
+    return pd.concat([before, recent]).sort_index()
+
+
+def _role_series(universe: Universe, role: str, ticker: str) -> pd.Series:
+    """One role's full history: the primary ticker, extended by its proxies."""
+    series = _load_series(ticker)
+    for older_ticker in universe.history.get(role, ()):
+        series = splice_series(series, _load_series(older_ticker))
+    return series
+
+
 def load_prices(universe: Universe) -> pd.DataFrame:
     """Load all roles into one aligned DataFrame with role-named columns.
 
@@ -93,7 +168,7 @@ def load_prices(universe: Universe) -> pd.DataFrame:
     """
     columns: dict[str, pd.Series] = {}
     for role, ticker in universe.tickers.items():
-        raw = _load_series(ticker)
+        raw = _role_series(universe, role, ticker)
         if ticker.startswith("^"):
             # '^IRX'-style yield series (a rate, not a price) -> synthetic index.
             # Only the caret-prefixed indices are rates; real cash ETFs (e.g.
@@ -118,7 +193,7 @@ def cache_date(universe: Universe) -> str:
     import datetime as _dt
 
     times = []
-    for ticker in universe.tickers.values():
+    for ticker in universe.all_tickers():
         path = _cache_path(ticker)
         if path.exists():
             times.append(path.stat().st_mtime)

@@ -8,8 +8,9 @@ import pandas as pd
 import pytest
 
 from momentum import backtest
-from momentum.config import BONDS, CostModel, EQUITIES_US
+from momentum.config import BONDS, CostModel, EQUITIES_US, WARMUP_DAYS
 from momentum.strategies import STRATEGIES, buy_and_hold, ma_200
+from tests.conftest import ROLES, frame
 
 
 # --- M2: cost accounting & buy-and-hold identity -----------------------------
@@ -54,6 +55,31 @@ def test_zero_turnover_rebalance_is_free(flat_prices):
 
 
 # --- M3: lookahead guardrails ------------------------------------------------
+
+def test_warmup_is_enough_history_for_every_strategy():
+    """Regression: WARMUP_DAYS was one row short of what dual_momentum needs.
+
+    The engine's first decision hands a strategy exactly WARMUP_DAYS rows, so
+    every strategy must be satisfied by precisely that many. The bug hid for a
+    long time because it only fires when a month-end lands exactly on the
+    boundary day, which the 'us' universe never did and 'us_long' does.
+    """
+    prices = frame({r: np.linspace(100.0, 200.0, WARMUP_DAYS) for r in ROLES})
+    assert len(prices) == WARMUP_DAYS
+    for name, fn in STRATEGIES.items():
+        fn(prices)  # must not raise
+
+
+def test_engine_never_decides_on_less_than_warmup(trending_prices):
+    seen: list[int] = []
+
+    def spy(prices):
+        seen.append(len(prices))
+        return {EQUITIES_US: 1.0}
+
+    backtest._decision_schedule(trending_prices, spy)
+    assert seen and min(seen) >= WARMUP_DAYS
+
 
 @pytest.mark.parametrize("name", sorted(STRATEGIES))
 def test_future_data_does_not_change_past_decisions(trending_prices, name):
