@@ -2,6 +2,11 @@
 __pycache__/
 *.pyc
 data/cache/
+
+# Secrets never belong in the repo. Config is read from the environment
+# (~/momentum.env on the server), so nothing here needs a committed .env.
+.env
+.env.*
 output/*.png
 state/*.json
 .pytest_cache/

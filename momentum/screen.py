@@ -501,6 +501,18 @@ def run_screen(
         bits.append("near 52w lows only")
     print(f"\nScreen: {universe_name.upper()} · " + " · ".join(bits) +
           f" · data fetched {fetched}\n")
+
+    # Tickers stop resolving when a company is acquired, delisted, or moves its
+    # primary listing. Harmless to the screen, but worth naming rather than
+    # leaving as noise mid-progress: the candidate list needs pruning by hand,
+    # and a silently shrinking universe is how survivorship bias creeps in.
+    unresolved = [t for t in tickers if t not in raw.index]
+    if unresolved:
+        print(
+            f"Note: {len(unresolved)} ticker(s) did not resolve and were skipped: "
+            f"{', '.join(unresolved)}.\n"
+            "      Prune them from SCREEN_UNIVERSES if they have gone for good.\n"
+        )
     print(format_table(ranked, top))
     print(
         "\nScore = mean percentile rank across value (P/E, P/B, EV/EBITDA), quality\n"
