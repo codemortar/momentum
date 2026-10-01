@@ -285,6 +285,18 @@ result. A method developed on snapshots still has to prove itself going
 forward. Like the journal, snapshots live in `state/` because they cannot be
 regenerated, so the server needs backups.
 
+**Database mirror.** `python -m momentum sync` copies the irreplaceable
+`state/` data into Postgres: the lab journal, the snapshots, and the JSON state
+files (signal state, ledger, punt book). The files stay the source of truth;
+the database is the off-server, backed-up, queryable copy. Every write is
+idempotent (journal lines keyed by content hash, snapshots by symbol and date,
+documents updated only when changed), so a failed or missed sync is caught up
+by the next. Both scheduled jobs sync after their work and treat a sync failure
+as non-fatal. Configured by `MOMENTUM_DATABASE_URL` in `~/momentum.env`; without
+it, sync does nothing. The connection runs in autocommit mode, because a bare
+read otherwise opens an implicit transaction and later blocks become savepoints
+that are never committed.
+
 FTSE methods are judged only against `random_walk_ftse`. They were registered
 on 2026-10-01 alongside the SPY roster, before any trade. Theta is US-only: no
 free UK option data, and UK index options are thin and largely closed to

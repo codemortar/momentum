@@ -92,4 +92,9 @@ if ! "$py" -m momentum signal --universe "$universe" --notify; then
     exit 1
 fi
 
+# Off-server copy of state/; best-effort, since the files remain the record.
+if ! "$py" -m momentum sync; then
+    echo "State sync failed; files on disk are unaffected." >&2
+fi
+
 echo "=== done $(date -u '+%Y-%m-%d %H:%M:%S UTC') ==="

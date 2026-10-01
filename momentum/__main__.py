@@ -11,6 +11,7 @@ Commands:
               [--train-years N] [--test-years N] [--tranches N] [--metric sharpe|cagr]
   punt     add|close|list  (individual stock bets, tracked outside the strategy)
   lab      run|report|methods  (paper-trading contest; no real money)
+  sync     (mirror state/ into Postgres; needs MOMENTUM_DATABASE_URL)
 """
 
 from __future__ import annotations
@@ -89,6 +90,12 @@ def _cmd_walkforward(args: argparse.Namespace) -> int:
         tranches=args.tranches,
         metric=args.metric,
     )
+
+
+def _cmd_sync(args: argparse.Namespace) -> int:
+    from . import dbsync
+
+    return dbsync.run_sync()
 
 
 def _cmd_lab(args: argparse.Namespace) -> int:
@@ -240,6 +247,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_lab.add_argument("action", choices=["run", "report", "methods"])
     p_lab.add_argument("--force", action="store_true", help="re-run even if today is marked")
     p_lab.set_defaults(func=_cmd_lab)
+
+    p_sync = sub.add_parser("sync", help="mirror state/ into Postgres (MOMENTUM_DATABASE_URL)")
+    p_sync.set_defaults(func=_cmd_sync)
 
     return parser
 

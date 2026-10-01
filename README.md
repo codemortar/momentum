@@ -27,7 +27,7 @@ Features:
 - Decisions are made on the month-end close and executed the next trading day.
 - Real costs. A per-rebalance trading cost and optional annual fee, so the
   comparison between strategies isn't a fantasy.
-- 141 fast, offline tests covering the strategy logic, backtest engine and signal
+- 147 fast, offline tests covering the strategy logic, backtest engine and signal
   timing, including the property-based no-lookahead test above. No network, runs
   in under a second.
 - The monthly job runs the whole suite first (`run_monthly.sh`) and only acts on
@@ -108,8 +108,12 @@ python -m momentum lab report    # the scoreboard
 On the server, weekdays at 19:30 UTC (US market open year-round):
 
 ```cron
-30 19 * * 1-5 cd $HOME/momentum && .venv/bin/python -m momentum lab run >> $HOME/lab-cron.log 2>&1
+30 19 * * 1-5 . $HOME/momentum.env && $HOME/momentum/run_lab.sh >> $HOME/lab-cron.log 2>&1
 ```
+
+Both jobs then mirror `state/` (the lab journal, snapshots, ledger and punt
+book) into Postgres when `MOMENTUM_DATABASE_URL` is set. The files stay the
+record; the database is the backed-up, queryable copy.
 
 ### Stock screener
 
