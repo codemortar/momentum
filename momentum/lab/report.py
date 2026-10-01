@@ -29,7 +29,7 @@ def run_report() -> int:
     records = journal.read_all()
     marked = curves(records)
     if not any(marked.values()):
-        print("Journal is empty — run `python -m lab run` on a trading day first.")
+        print("Journal is empty — run `python -m momentum lab run` on a trading day first.")
         return 0
 
     frictions: dict[str, float] = {name: 0.0 for name in REGISTRY}
