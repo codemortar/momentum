@@ -43,8 +43,8 @@ def run_report() -> int:
     end = date.fromisoformat(ASSESSMENT_END)
     remaining = (end - date.today()).days
     print(f"Paper contest — day {days}, {max(remaining, 0)} days to assessment "
-          f"({ASSESSMENT_END}). {START_CAPITAL:,.0f} start per method, in the "
-          "market's currency.\n")
+          f"({ASSESSMENT_END}). {START_CAPITAL:,.0f} start per method in the market's "
+          "currency, except pilot-sized methods.\n")
 
     tags = {"random_walk": " <- control", "random_walk_ftse": " <- control",
             "lunar": " <- placebo"}
@@ -54,10 +54,15 @@ def run_report() -> int:
         group = [(n, c) for n, c in marked.items() if REGISTRY[n].underlying == underlying]
         print(header)
         print("-" * len(header))
-        for name, curve in sorted(group, key=lambda kv: -(kv[1][-1][1] if kv[1] else START_CAPITAL)):
-            value = curve[-1][1] if curve else START_CAPITAL
-            values = [v for _, v in curve] or [START_CAPITAL]
-            print(f"{name:18s}{underlying:>7s}{value:>12,.2f}{value / START_CAPITAL - 1:>9.2%}"
+        def ret(kv):
+            cap = REGISTRY[kv[0]].capital
+            return (kv[1][-1][1] if kv[1] else cap) / cap - 1
+
+        for name, curve in sorted(group, key=lambda kv: -ret(kv)):
+            cap = REGISTRY[name].capital
+            value = curve[-1][1] if curve else cap
+            values = [v for _, v in curve] or [cap]
+            print(f"{name:18s}{underlying:>7s}{value:>12,.2f}{value / cap - 1:>9.2%}"
                   f"{max_drawdown(values):>8.2%}{fills[name]:>7d}{frictions[name]:>10.2f}"
                   f"{tags.get(name, '')}")
         print()

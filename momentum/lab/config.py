@@ -8,6 +8,7 @@ SNAPSHOT_DIR = STATE_DIR / "lab_snapshots"
 UNDERLYING = "SPY"
 FTSE = "ISF.L"                    # iShares Core FTSE 100, ISA-eligible
 START_CAPITAL = 100_000.0         # per method, in the instrument's currency (USD/GBP)
+PILOT_CAPITAL = 1_300.0           # ~£1,000 in USD: methods sized to the real-money pilot
 
 # Per-side slippage; London ETF spreads are wider than SPY's. Unknown symbols
 # get the pessimistic default.

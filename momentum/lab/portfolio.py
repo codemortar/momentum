@@ -55,8 +55,10 @@ class Account:
         return total
 
 
-def replay(records: list[dict], method_names: list[str]) -> dict[str, Account]:
-    accounts = {name: Account() for name in method_names}
+def replay(records: list[dict], method_names: list[str],
+           capitals: dict[str, float] | None = None) -> dict[str, Account]:
+    capitals = capitals or {}
+    accounts = {name: Account(cash=capitals.get(name, START_CAPITAL)) for name in method_names}
     for r in records:
         account = accounts.get(r.get("method", ""))
         if account is None:

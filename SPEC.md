@@ -266,6 +266,7 @@ assignment. A run is idempotent per trading day.
 | Method | Rule | Family |
 |---|---|---|
 | theta_puts | Sell 1 cash-secured SPY put ~5% OTM, 28–45 DTE; buy back at 80% profit or 7 DTE, re-sell | volatility risk premium |
+| theta_spread | Sell 1 SPY put ~5% OTM, buy 1 ~$5 lower, 28–45 DTE; close both at 80% profit or 7 DTE. $1,300 (~£1,000) account | volatility risk premium, capped loss |
 | overnight | Buy SPY at the close, sell at the next open | overnight anomaly |
 | sma_cross | Long SPY while 20d SMA > 100d SMA, else cash | trend |
 | random_walk | Long or flat by date-seeded coin flip | control |
@@ -334,7 +335,14 @@ tracked trade by trade against its paper twin. Hard stop: if the pilot falls to
 real fills to match paper fills. A method that fails any criterion is retired
 with its record intact. Options cannot be held in an ISA, and a cash-secured put
 needs far more than £1,000 of collateral, so a put-selling pilot at this size
-would need a capped-loss (spread) variant registered as its own method. They were registered
+would need a capped-loss (spread) variant registered as its own method —
+`theta_spread`, registered 2026-10-01 before the first run. It trades SPY's
+chain as a proxy for the equivalent XSP spread, and its account is sized to the
+pilot ($1,300) rather than 100,000, so its returns and drawdowns show what the
+real £1,000 would experience; one maximum loss is roughly a third of it.
+
+Multi-leg orders are all-or-nothing: if any leg lacks a live two-sided quote,
+the runner trades none of them, since a lone short leg is an uncapped position. They were registered
 on 2026-10-01 alongside the SPY roster, before any trade. Theta is US-only: no
 free UK option data, and UK index options are thin and largely closed to
 retail.

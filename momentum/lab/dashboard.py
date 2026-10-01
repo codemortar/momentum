@@ -22,7 +22,7 @@ READ_URL_VAR = "MOMENTUM_READ_DATABASE_URL"
 
 # Fixed categorical slots (validated light/dark); controls are muted and dashed.
 METHOD_STYLE = {
-    "theta_puts": 1, "overnight": 2, "sma_cross": 3,
+    "theta_puts": 1, "theta_spread": 4, "overnight": 2, "sma_cross": 3,
     "overnight_ftse": 2, "sma_cross_ftse": 3,
     "random_walk": "control", "random_walk_ftse": "control", "lunar": "placebo",
 }
@@ -71,7 +71,7 @@ def panels(records: list[dict]) -> list[dict]:
             series.append({
                 "name": n,
                 "style": METHOD_STYLE.get(n, 1),
-                "values": [round((vals[d] / config.START_CAPITAL - 1) * 100, 4) if d in vals else None
+                "values": [round((vals[d] / REGISTRY[n].capital - 1) * 100, 4) if d in vals else None
                            for d in dates],
             })
         out.append({"market": underlying, "dates": dates, "series": series})
@@ -93,10 +93,10 @@ def stats(records: list[dict]) -> list[dict]:
             curves[m].append(r["value"])
     rows = []
     for n, method in REGISTRY.items():
-        values = curves[n] or [config.START_CAPITAL]
+        values = curves[n] or [method.capital]
         rows.append({
             "name": n, "market": method.underlying, "value": values[-1],
-            "ret": values[-1] / config.START_CAPITAL - 1, "dd": max_drawdown(values),
+            "ret": values[-1] / method.capital - 1, "dd": max_drawdown(values),
             "fills": fills[n], "friction": friction[n], "style": METHOD_STYLE.get(n, 1),
         })
     return sorted(rows, key=lambda r: (r["market"] != "SPY", -r["ret"]))
@@ -244,10 +244,10 @@ TEMPLATE = """<!doctype html>
 <style>
 :root {{ color-scheme: light; --page:#f9f9f7; --surface:#fcfcfb; --ink:#0b0b0b; --ink2:#52514e;
   --muted:#898781; --grid:#e1e0d9; --axis:#c3c2b7; --ring:rgba(11,11,11,.10);
-  --series-1:#2a78d6; --series-2:#eb6834; --series-3:#1baf7a; }}
+  --series-1:#2a78d6; --series-2:#eb6834; --series-3:#1baf7a; --series-4:#eda100; }}
 @media (prefers-color-scheme: dark) {{ :root {{ color-scheme: dark; --page:#0d0d0d; --surface:#1a1a19;
   --ink:#fff; --ink2:#c3c2b7; --grid:#2c2c2a; --axis:#383835; --ring:rgba(255,255,255,.10);
-  --series-1:#3987e5; --series-2:#d95926; --series-3:#199e70; }} }}
+  --series-1:#3987e5; --series-2:#d95926; --series-3:#199e70; --series-4:#c98500; }} }}
 * {{ box-sizing: border-box; }}
 body {{ margin:0; background:var(--page); color:var(--ink);
   font:14px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif; }}
@@ -279,7 +279,7 @@ td {{ border-bottom:1px solid var(--grid); padding:6px 4px; }}
 <h1>Paper-trading lab</h1>
 <p class="meta">Day {days} &middot; {left} days to assessment ({end}) &middot; data: {source} &middot; generated {generated}</p>
 {charts}
-<section><h2>Scoreboard</h2><p class="sub">100,000 start per method, in its market's currency.</p>
+<section><h2>Scoreboard</h2><p class="sub">100,000 start per method in its market's currency; theta_spread starts with $1,300 (about £1,000), sized to the real pilot.</p>
 <div class="scroll"><table><thead><tr><th>Method</th><th>Market</th><th class="num">Value</th><th class="num">Return</th>
 <th class="num">Max drawdown</th><th class="num">Fills</th><th class="num">Costs paid</th></tr></thead><tbody>{rows}</tbody></table></div>
 <p class="note">Judge each method against the control in its own market. Three months can refute a method,

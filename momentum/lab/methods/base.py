@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from typing import Callable, Protocol
 
 from ..broker import Order
-from ..config import UNDERLYING
+from ..config import START_CAPITAL, UNDERLYING
 from ..data import Market
 from ..portfolio import Account
 
@@ -28,3 +28,4 @@ class Method:
     rule: str        # the pre-registered rule, printed in reports
     decide: Callable[[Context], list[Order]]
     underlying: str = UNDERLYING
+    capital: float = START_CAPITAL

@@ -27,7 +27,7 @@ Features:
 - Decisions are made on the month-end close and executed the next trading day.
 - Real costs. A per-rebalance trading cost and optional annual fee, so the
   comparison between strategies isn't a fantasy.
-- 160 fast, offline tests covering the strategy logic, backtest engine and signal
+- 168 fast, offline tests covering the strategy logic, backtest engine and signal
   timing, including the property-based no-lookahead test above. No network, runs
   in under a second.
 - The monthly job runs the whole suite first (`run_monthly.sh`) and only acts on

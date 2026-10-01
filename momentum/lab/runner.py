@@ -58,7 +58,7 @@ def run(force: bool = False) -> int:
         except OSError as exc:
             print(f"  {symbol}: snapshot not saved ({exc}); trading continues.")
 
-    accounts = replay(records, list(REGISTRY))
+    accounts = replay(records, list(REGISTRY), {n: m.capital for n, m in REGISTRY.items()})
     if UNDERLYING in markets:
         settle_expired(accounts, markets[UNDERLYING])
 
@@ -79,6 +79,11 @@ def run(force: bool = False) -> int:
             orders = method.decide(Context(market=market, account=account, name=name))
         except Exception as exc:
             print(f"  {name:16s} DECIDE FAILED: {exc}")
+            orders = []
+        missing = [o for o in orders if not isinstance(o.instrument, Equity) and not _live(o, market)]
+        if missing:
+            # All legs or none: one filled leg of a spread is an uncapped position.
+            print(f"  {name:16s} rejected all {len(orders)} legs: no live quote for {missing[0].instrument.key}")
             orders = []
         for order in orders:
             try:
@@ -102,6 +107,11 @@ def run(force: bool = False) -> int:
     if ran == 0:
         print("No market has a new bar since the last run; nothing to do.")
     return 0
+
+
+def _live(order, market: Market) -> bool:
+    q = market.quote(order.instrument.expiry, order.instrument.strike, order.instrument.right)
+    return q is not None and q[0] > 0 and q[1] > 0
 
 
 def _mark_prices(account, market: Market) -> dict[str, float]:
