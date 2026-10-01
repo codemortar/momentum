@@ -10,6 +10,7 @@ Commands:
   walkforward --universe us [--select strategies|buffers] [--strategy NAME]
               [--train-years N] [--test-years N] [--tranches N] [--metric sharpe|cagr]
   punt     add|close|list  (individual stock bets, tracked outside the strategy)
+  lab      run|report|methods  (paper-trading contest; no real money)
 """
 
 from __future__ import annotations
@@ -88,6 +89,22 @@ def _cmd_walkforward(args: argparse.Namespace) -> int:
         tranches=args.tranches,
         metric=args.metric,
     )
+
+
+def _cmd_lab(args: argparse.Namespace) -> int:
+    if args.action == "run":
+        from .lab.runner import run
+
+        return run(force=args.force)
+    if args.action == "report":
+        from .lab.report import run_report
+
+        return run_report()
+    from .lab.methods import REGISTRY
+
+    for method in REGISTRY.values():
+        print(f"{method.name:14s} {method.rule}")
+    return 0
 
 
 def _cmd_punt(args: argparse.Namespace) -> int:
@@ -218,6 +235,11 @@ def build_parser() -> argparse.ArgumentParser:
     p_pt.add_argument("--trigger", default="", help="what would make you sell")
     p_pt.add_argument("--date", help="ISO date (default: today)")
     p_pt.set_defaults(func=_cmd_punt)
+
+    p_lab = sub.add_parser("lab", help="paper-trading contest between prediction methods")
+    p_lab.add_argument("action", choices=["run", "report", "methods"])
+    p_lab.add_argument("--force", action="store_true", help="re-run even if today is marked")
+    p_lab.set_defaults(func=_cmd_lab)
 
     return parser
 

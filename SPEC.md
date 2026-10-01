@@ -228,6 +228,48 @@ Entry prices are fetched **as of the purchase date**, not the current date, so
 a backdated position shows its real gain or loss. Positions in the same ticker
 stay separate rather than being averaged, and closing is first-in-first-out.
 
+## Paper-trading lab (`lab`)
+
+A dated contest: daily paper trading of several prediction methods from
+2026-10-01 to an assessment on 2027-01-01. No real money, no broker access.
+Separate from the ETF strategies — it shares nothing with the signal, ledger
+or backtest except the `state/` directory.
+
+Honesty rules (the point of the exercise):
+
+1. **Far-touch fills.** Buys at the ask, sells at the bid, plus commission and
+   slippage. Mid-price fills are how paper trading lies.
+2. **Pre-registration.** A method's rule is fixed before it trades. Changing a
+   rule means retiring it and registering a successor under a new name.
+3. **Controls.** `random_walk` (coin flip) and `lunar` (moon phase, a placebo)
+   trade with identical costs. No edge is claimed for anything that cannot
+   beat them.
+4. **Append-only journal** (`state/lab_journal.jsonl`); accounts are rebuilt by
+   replaying it and the report is a pure function of it.
+5. **Kill fast, promote slowly.** Three months can refute a method, never
+   validate one — short-volatility methods least of all, since their losses
+   are rare and large.
+
+Mechanics: $100,000 paper per method (one cash-secured SPY put needs ~$70k of
+collateral); SPY as underlying, since US option chains are free via yfinance
+and UK ones are not; equities pay 2bps slippage per side, options $0.65 per
+contract plus the spread. Runs at ~19:30 UTC on weekdays — inside US market
+hours year-round, because Yahoo zeroes option quotes once the market closes
+and dead quotes are rejected rather than guessed at. Short options reaching
+expiry are cash-settled at intrinsic against the underlying, approximating
+assignment. A run is idempotent per trading day.
+
+| Method | Rule | Family |
+|---|---|---|
+| theta_puts | Sell 1 cash-secured SPY put ~5% OTM, 28–45 DTE; buy back at 80% profit or 7 DTE, re-sell | volatility risk premium |
+| overnight | Buy SPY at the close, sell at the next open | overnight anomaly |
+| sma_cross | Long SPY while 20d SMA > 100d SMA, else cash | trend |
+| random_walk | Long or flat by date-seeded coin flip | control |
+| lunar | Long while the moon waxes | placebo |
+
+Backlog, added as new methods only: RSI-2 mean reversion, turn-of-month,
+VIX-regime filter, covered calls, long calls on momentum.
+
 ## Known limitations
 
 - **Adjusted-close drift**: yfinance re-adjusts history on each dividend, so a

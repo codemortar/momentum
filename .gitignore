@@ -8,6 +8,6 @@ data/cache/
 .env
 .env.*
 output/*.png
-state/*.json
+state/
 .pytest_cache/
 .DS_Store
