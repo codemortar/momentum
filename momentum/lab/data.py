@@ -12,6 +12,8 @@ class Market:
     date: str                  # trading date of the latest bar (ISO)
     bars: pd.DataFrame         # daily open/close, ascending index
     chain: pd.DataFrame        # columns: expiry, strike, right, bid, ask
+    symbol: str = "SPY"
+    currency: str = "USD"
 
     @property
     def spot(self) -> float:
@@ -45,6 +47,11 @@ def fetch_market(symbol: str, history_days: int = 320, max_dte: int = 55) -> Mar
     if bars.empty:
         raise RuntimeError(f"No price history for {symbol!r}.")
     bars = bars.rename(columns=str.lower)[["open", "close"]]
+    currency = ticker.fast_info.get("currency") or "USD"
+    if currency == "GBp":
+        # London ETFs quote in pence; pounds keep accounts comparable to USD ones.
+        bars = bars / 100.0
+        currency = "GBP"
 
     # SPY has daily expiries, so select by horizon: counting the first N
     # expiries never reaches a 28-45 day window.
@@ -69,4 +76,5 @@ def fetch_market(symbol: str, history_days: int = 320, max_dte: int = 55) -> Mar
         if frames
         else pd.DataFrame(columns=["strike", "bid", "ask", "expiry", "right"])
     )
-    return Market(date=bars.index[-1].date().isoformat(), bars=bars, chain=chain)
+    return Market(date=bars.index[-1].date().isoformat(), bars=bars, chain=chain,
+                  symbol=symbol, currency=currency)

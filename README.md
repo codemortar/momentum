@@ -27,7 +27,7 @@ Features:
 - Decisions are made on the month-end close and executed the next trading day.
 - Real costs. A per-rebalance trading cost and optional annual fee, so the
   comparison between strategies isn't a fantasy.
-- 130 fast, offline tests covering the strategy logic, backtest engine and signal
+- 136 fast, offline tests covering the strategy logic, backtest engine and signal
   timing, including the property-based no-lookahead test above. No network, runs
   in under a second.
 - The monthly job runs the whole suite first (`run_monthly.sh`) and only acts on
@@ -94,8 +94,10 @@ Punts never touch the strategy ledger or any backtest figure.
 
 A three-month paper contest (Oct 2026 – Jan 2027) between trading methods,
 including selling SPY puts for theta, run daily with honest costs: buys fill at
-the ask, sells at the bid. A coin-flip control and a moon-phase placebo trade
-alongside, so anything that can't beat them has shown no edge. No real money.
+the ask, sells at the bid. The share-trading methods also run on the FTSE 100
+(ISF.L). Each market has a coin-flip control, and a moon-phase placebo trades
+alongside, so anything that can't beat its control has shown no edge. No real
+money.
 
 ```bash
 python -m momentum lab methods   # the pre-registered rules

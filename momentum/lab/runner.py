@@ -1,11 +1,11 @@
-"""One daily cycle: settle, decide, fill, mark. Idempotent per trading day."""
+"""One daily cycle: settle, decide, fill, mark. Idempotent per method per bar."""
 
 from __future__ import annotations
 
 from datetime import date
 
 from . import journal
-from .broker import Equity, NoMarketError, Option, fill_equity, fill_option
+from .broker import Equity, NoMarketError, fill_equity, fill_option
 from .config import UNDERLYING
 from .data import Market, fetch_market
 from .methods import Context, REGISTRY
@@ -26,7 +26,7 @@ def settle_expired(accounts, market: Market) -> None:
             account.settle_option(key, intrinsic)
 
 
-def execute(name: str, order, market: Market):
+def execute(order, market: Market):
     if isinstance(order.instrument, Equity):
         return fill_equity(order, market.bars.iloc[-1])
     quote = market.quote(order.instrument.expiry, order.instrument.strike, order.instrument.right)
@@ -35,30 +35,51 @@ def execute(name: str, order, market: Market):
     return fill_option(order, *quote)
 
 
+def last_marks(records: list[dict]) -> dict[str, str]:
+    """Latest bar date each method has been marked on."""
+    out: dict[str, str] = {}
+    for r in records:
+        if r.get("kind") == "mark":
+            out[r["method"]] = max(out.get(r["method"], ""), r["date"])
+    return out
+
+
 def run(force: bool = False) -> int:
     records = journal.read_all()
-    market = fetch_market(UNDERLYING)
-    if not force and journal.last_mark_date(records) == market.date:
-        print(f"Already ran for {market.date}; nothing to do.")
-        return 0
+    markets: dict[str, Market] = {}
+    for symbol in sorted({m.underlying for m in REGISTRY.values()}):
+        try:
+            markets[symbol] = fetch_market(symbol)
+        except Exception as exc:
+            print(f"  {symbol}: no market data today ({exc}); its methods sit out.")
 
     accounts = replay(records, list(REGISTRY))
-    settle_expired(accounts, market)
+    if UNDERLYING in markets:
+        settle_expired(accounts, markets[UNDERLYING])
 
-    print(f"Lab run for {market.date} (spot {market.spot:.2f}, "
-          f"{len(market.chain)} option quotes)")
+    for symbol, market in markets.items():
+        print(f"{symbol} bar {market.date}: spot {market.spot:,.2f} {market.currency}, "
+              f"{len(market.chain)} option quotes")
+
+    marked = last_marks(records)
+    ran = 0
     for name, method in REGISTRY.items():
+        market = markets.get(method.underlying)
+        # A stale or missing bar (London data gaps, UK holidays) must not trade twice.
+        if market is None or (not force and marked.get(name, "") >= market.date):
+            continue
+        ran += 1
         account = accounts[name]
         try:
             orders = method.decide(Context(market=market, account=account, name=name))
         except Exception as exc:
-            print(f"  {name:12s} DECIDE FAILED: {exc}")
-            continue
+            print(f"  {name:16s} DECIDE FAILED: {exc}")
+            orders = []
         for order in orders:
             try:
-                fill = execute(name, order, market)
+                fill = execute(order, market)
             except NoMarketError as exc:
-                print(f"  {name:12s} rejected: {exc}")
+                print(f"  {name:16s} rejected: {exc}")
                 continue
             journal.append({"kind": "fill", "date": market.date, "method": name,
                             "instrument": fill.instrument_key, "qty": fill.qty,
@@ -66,24 +87,24 @@ def run(force: bool = False) -> int:
                             "friction": fill.friction})
             account.apply_fill(fill.instrument_key, fill.qty, fill.price,
                                fill.cash_delta, fill.friction)
-            print(f"  {name:12s} {'BUY' if fill.qty > 0 else 'SELL':4s} "
-                  f"{abs(fill.qty)} {fill.instrument_key} @ {fill.price:.2f}")
+            print(f"  {name:16s} {'BUY' if fill.qty > 0 else 'SELL':4s} "
+                  f"{abs(fill.qty)} {fill.instrument_key} @ {fill.price:,.2f}")
 
-    marks = _mark_prices(accounts, market)
-    for name, account in accounts.items():
-        value = account.value(marks)
+        value = account.value(_mark_prices(account, market))
         journal.append({"kind": "mark", "date": market.date, "method": name, "value": value})
-        print(f"  {name:12s} value {value:,.2f}")
+        print(f"  {name:16s} value {value:,.2f} {market.currency}")
+
+    if ran == 0:
+        print("No market has a new bar since the last run; nothing to do.")
     return 0
 
 
-def _mark_prices(accounts, market: Market) -> dict[str, float]:
-    marks: dict[str, float] = {Equity(UNDERLYING).key: market.spot}
-    for account in accounts.values():
-        for key in account.positions:
-            if key.startswith("OPT:") and key not in marks:
-                _, _, expiry, strike, right = key.split(":")
-                mid = market.mid(expiry, float(strike), right)
-                if mid is not None:
-                    marks[key] = mid
+def _mark_prices(account, market: Market) -> dict[str, float]:
+    marks: dict[str, float] = {Equity(market.symbol).key: market.spot}
+    for key in account.positions:
+        if key.startswith("OPT:"):
+            _, _, expiry, strike, right = key.split(":")
+            mid = market.mid(expiry, float(strike), right)
+            if mid is not None:
+                marks[key] = mid
     return marks

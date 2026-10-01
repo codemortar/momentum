@@ -250,10 +250,14 @@ Honesty rules (the point of the exercise):
    validate one — short-volatility methods least of all, since their losses
    are rare and large.
 
-Mechanics: $100,000 paper per method (one cash-secured SPY put needs ~$70k of
-collateral); SPY as underlying, since US option chains are free via yfinance
-and UK ones are not; equities pay 2bps slippage per side, options $0.65 per
-contract plus the spread. Runs at ~19:30 UTC on weekdays — inside US market
+Mechanics: 100,000 paper per method in its market's currency (one
+cash-secured SPY put needs ~$70k of collateral). Two markets: SPY, the only one
+with free option chains via yfinance, and ISF.L (iShares FTSE 100, quoted in
+pence by Yahoo and converted to pounds). Equities pay per-side slippage of 2bps
+on SPY and 8bps on ISF.L, whose spreads are wider; options pay $0.65 per
+contract plus the spread. A method only trades when its own market has a bar
+newer than its last mark, so London data gaps and UK holidays cannot cause a
+double trade on a stale bar. Runs at ~19:30 UTC on weekdays — inside US market
 hours year-round, because Yahoo zeroes option quotes once the market closes
 and dead quotes are rejected rather than guessed at. Short options reaching
 expiry are cash-settled at intrinsic against the underlying, approximating
@@ -266,6 +270,14 @@ assignment. A run is idempotent per trading day.
 | sma_cross | Long SPY while 20d SMA > 100d SMA, else cash | trend |
 | random_walk | Long or flat by date-seeded coin flip | control |
 | lunar | Long while the moon waxes | placebo |
+| overnight_ftse | As overnight, on ISF.L | overnight anomaly (UK) |
+| sma_cross_ftse | As sma_cross, on ISF.L | trend (UK) |
+| random_walk_ftse | Coin flip on ISF.L, its own seed | control (UK) |
+
+FTSE methods are judged only against `random_walk_ftse`. They were registered
+on 2026-10-01 alongside the SPY roster, before any trade. Theta is US-only: no
+free UK option data, and UK index options are thin and largely closed to
+retail.
 
 Backlog, added as new methods only: RSI-2 mean reversion, turn-of-month,
 VIX-regime filter, covered calls, long calls on momentum.

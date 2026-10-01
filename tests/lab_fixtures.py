@@ -12,6 +12,7 @@ def make_market(
     closes: list[float] | None = None,
     opens: list[float] | None = None,
     chain_rows: list[dict] | None = None,
+    symbol: str = "SPY",
 ) -> Market:
     closes = closes or [100.0] * 120
     opens = opens or closes
@@ -20,7 +21,7 @@ def make_market(
     chain = pd.DataFrame(
         chain_rows or [], columns=["strike", "bid", "ask", "expiry", "right"]
     )
-    return Market(date=date, bars=bars, chain=chain)
+    return Market(date=date, bars=bars, chain=chain, symbol=symbol)
 
 
 def put_row(strike: float, bid: float, ask: float, expiry: str) -> dict:

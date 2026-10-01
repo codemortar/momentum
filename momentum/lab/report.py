@@ -43,23 +43,29 @@ def run_report() -> int:
     end = date.fromisoformat(ASSESSMENT_END)
     remaining = (end - date.today()).days
     print(f"Paper contest — day {days}, {max(remaining, 0)} days to assessment "
-          f"({ASSESSMENT_END}). ${START_CAPITAL:,.0f} start per method.\n")
+          f"({ASSESSMENT_END}). {START_CAPITAL:,.0f} start per method, in the "
+          "market's currency.\n")
 
-    header = f"{'method':14s}{'value':>11s}{'return':>9s}{'maxDD':>8s}{'fills':>7s}{'friction':>10s}"
-    print(header)
-    print("-" * len(header))
-    ranked = sorted(marked.items(), key=lambda kv: -(kv[1][-1][1] if kv[1] else START_CAPITAL))
-    for name, curve in ranked:
-        value = curve[-1][1] if curve else START_CAPITAL
-        values = [v for _, v in curve] or [START_CAPITAL]
-        tag = {"random_walk": " <- control", "lunar": " <- placebo"}.get(name, "")
-        print(f"{name:14s}{value:>11,.2f}{value / START_CAPITAL - 1:>9.2%}"
-              f"{max_drawdown(values):>8.2%}{fills[name]:>7d}{frictions[name]:>10.2f}{tag}")
+    tags = {"random_walk": " <- control", "random_walk_ftse": " <- control",
+            "lunar": " <- placebo"}
+    header = (f"{'method':18s}{'market':>7s}{'value':>12s}{'return':>9s}"
+              f"{'maxDD':>8s}{'fills':>7s}{'friction':>10s}")
+    for underlying in sorted({m.underlying for m in REGISTRY.values()}, key=lambda u: u != "SPY"):
+        group = [(n, c) for n, c in marked.items() if REGISTRY[n].underlying == underlying]
+        print(header)
+        print("-" * len(header))
+        for name, curve in sorted(group, key=lambda kv: -(kv[1][-1][1] if kv[1] else START_CAPITAL)):
+            value = curve[-1][1] if curve else START_CAPITAL
+            values = [v for _, v in curve] or [START_CAPITAL]
+            print(f"{name:18s}{underlying:>7s}{value:>12,.2f}{value / START_CAPITAL - 1:>9.2%}"
+                  f"{max_drawdown(values):>8.2%}{fills[name]:>7d}{frictions[name]:>10.2f}"
+                  f"{tags.get(name, '')}")
+        print()
 
     print(
-        "\nRead with care: a method below random_walk has shown no edge; anything\n"
-        "the placebo beats is noise so far. Three months can refute, not validate —\n"
-        "theta_puts especially earns small and loses rare-and-big, so its win rate\n"
-        "here says nothing about its tail."
+        "Read with care: judge each method against the control in its own market —\n"
+        "below it means no edge shown; anything the placebo beats is noise so far.\n"
+        "Three months can refute, not validate — theta_puts especially earns small\n"
+        "and loses rare-and-big, so its win rate here says nothing about its tail."
     )
     return 0

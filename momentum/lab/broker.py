@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .config import EQUITY_SLIPPAGE_BPS, OPTION_COMMISSION, OPTION_MULTIPLIER
+from .config import DEFAULT_SLIPPAGE_BPS, OPTION_COMMISSION, OPTION_MULTIPLIER, SLIPPAGE_BPS
 
 
 @dataclass(frozen=True)
@@ -50,7 +50,8 @@ class NoMarketError(Exception):
 
 def fill_equity(order: Order, bar) -> Fill:
     base = float(bar[order.at])
-    slip = base * EQUITY_SLIPPAGE_BPS / 1e4
+    bps = SLIPPAGE_BPS.get(order.instrument.symbol, DEFAULT_SLIPPAGE_BPS)
+    slip = base * bps / 1e4
     price = base + slip if order.qty > 0 else base - slip
     return Fill(
         instrument_key=order.instrument.key,

@@ -6,14 +6,16 @@ import hashlib
 from datetime import date
 
 from ..broker import Equity, Order
-from ..config import UNDERLYING
+from ..config import FTSE
 from .base import Context, Method
 
-SPY = Equity(UNDERLYING)
+
+def _fund(ctx: Context) -> Equity:
+    return Equity(ctx.market.symbol)
 
 
 def _held(ctx: Context) -> int:
-    pos = ctx.account.positions.get(SPY.key)
+    pos = ctx.account.positions.get(_fund(ctx).key)
     return pos.qty if pos else 0
 
 
@@ -22,9 +24,9 @@ def _target(ctx: Context, want_long: bool, at: str = "close") -> list[Order]:
     if want_long and held == 0:
         price = ctx.market.spot
         qty = int(ctx.account.cash * 0.98 // price)
-        return [Order(SPY, qty=qty, at=at)] if qty > 0 else []
+        return [Order(_fund(ctx), qty=qty, at=at)] if qty > 0 else []
     if not want_long and held != 0:
-        return [Order(SPY, qty=-held, at=at)]
+        return [Order(_fund(ctx), qty=-held, at=at)]
     return []
 
 
@@ -34,13 +36,13 @@ def overnight(ctx: Context) -> list[Order]:
     orders = []
     held = _held(ctx)
     if held:
-        orders.append(Order(SPY, qty=-held, at="open"))  # today's open is already history
+        orders.append(Order(_fund(ctx), qty=-held, at="open"))  # today's open is already history
         cash_after = ctx.account.cash + held * float(ctx.market.bars["open"].iloc[-1])
     else:
         cash_after = ctx.account.cash
     qty = int(cash_after * 0.98 // ctx.market.spot)
     if qty > 0:
-        orders.append(Order(SPY, qty=qty, at="close"))
+        orders.append(Order(_fund(ctx), qty=qty, at="close"))
     return orders
 
 
@@ -57,8 +59,8 @@ def sma_cross(ctx: Context) -> list[Order]:
 # --- random_walk: the control --------------------------------------------------
 
 def random_walk(ctx: Context) -> list[Order]:
-    # Seeded by date so the coin flip is reproducible and cannot be re-rolled.
-    digest = hashlib.sha256(f"random_walk:{ctx.market.date}".encode()).digest()
+    # Seeded by name and date: reproducible, unre-rollable, and a separate coin per market.
+    digest = hashlib.sha256(f"{ctx.name}:{ctx.market.date}".encode()).digest()
     return _target(ctx, want_long=digest[0] % 2 == 0)
 
 
@@ -82,4 +84,10 @@ METHODS = [
     Method("sma_cross", "Long SPY while 20d SMA > 100d SMA, else cash.", sma_cross),
     Method("random_walk", "CONTROL: long or flat by date-seeded coin flip.", random_walk),
     Method("lunar", "PLACEBO: long while the moon waxes, flat while it wanes.", lunar),
+    Method("overnight_ftse", "Buy ISF.L (FTSE 100) at every close, sell at the next open.",
+           overnight, underlying=FTSE),
+    Method("sma_cross_ftse", "Long ISF.L while 20d SMA > 100d SMA, else cash.",
+           sma_cross, underlying=FTSE),
+    Method("random_walk_ftse", "CONTROL (FTSE): long or flat ISF.L by date-seeded coin flip.",
+           random_walk, underlying=FTSE),
 ]

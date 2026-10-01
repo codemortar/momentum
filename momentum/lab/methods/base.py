@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Callable, Protocol
 
 from ..broker import Order
+from ..config import UNDERLYING
 from ..data import Market
 from ..portfolio import Account
 
@@ -26,3 +27,4 @@ class Method:
     name: str
     rule: str        # the pre-registered rule, printed in reports
     decide: Callable[[Context], list[Order]]
+    underlying: str = UNDERLYING
