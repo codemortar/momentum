@@ -274,6 +274,17 @@ assignment. A run is idempotent per trading day.
 | sma_cross_ftse | As sma_cross, on ISF.L | trend (UK) |
 | random_walk_ftse | Coin flip on ISF.L, its own seed | control (UK) |
 
+**Snapshots.** Each run saves every market's latest bar and (for SPY) its
+option chain out to 95 days, under `state/lab_snapshots/<bar date>/`: once per
+bar, never overwritten. Yahoo serves only the current chain, so these are the
+only record of the quotes the contest traded against. They let a *new* method
+be replayed immediately against real historical quotes instead of waiting
+three months for a forward test. They must not be used to tune a method already
+in the contest: fitting a rule to the same period it is scored on voids its
+result. A method developed on snapshots still has to prove itself going
+forward. Like the journal, snapshots live in `state/` because they cannot be
+regenerated, so the server needs backups.
+
 FTSE methods are judged only against `random_walk_ftse`. They were registered
 on 2026-10-01 alongside the SPY roster, before any trade. Theta is US-only: no
 free UK option data, and UK index options are thin and largely closed to

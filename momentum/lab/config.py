@@ -3,6 +3,7 @@
 from ..config import STATE_DIR
 
 JOURNAL = STATE_DIR / "lab_journal.jsonl"
+SNAPSHOT_DIR = STATE_DIR / "lab_snapshots"
 
 UNDERLYING = "SPY"
 FTSE = "ISF.L"                    # iShares Core FTSE 100, ISA-eligible

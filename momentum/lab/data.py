@@ -37,7 +37,7 @@ class Market:
         return (q[0] + q[1]) / 2
 
 
-def fetch_market(symbol: str, history_days: int = 320, max_dte: int = 55) -> Market:
+def fetch_market(symbol: str, history_days: int = 320, max_dte: int = 95) -> Market:
     from datetime import date as _date
 
     import yfinance as yf
@@ -53,8 +53,8 @@ def fetch_market(symbol: str, history_days: int = 320, max_dte: int = 55) -> Mar
         bars = bars / 100.0
         currency = "GBP"
 
-    # SPY has daily expiries, so select by horizon: counting the first N
-    # expiries never reaches a 28-45 day window.
+    # Select by horizon (SPY lists daily expiries); 95 days covers theta's window
+    # plus room for longer-dated variants replayed later from snapshots.
     today = bars.index[-1].date()
     expiries = [
         e for e in ticker.options

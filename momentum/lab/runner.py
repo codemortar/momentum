@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from . import journal
+from . import journal, snapshots
 from .broker import Equity, NoMarketError, fill_equity, fill_option
 from .config import UNDERLYING
 from .data import Market, fetch_market
@@ -52,6 +52,11 @@ def run(force: bool = False) -> int:
             markets[symbol] = fetch_market(symbol)
         except Exception as exc:
             print(f"  {symbol}: no market data today ({exc}); its methods sit out.")
+            continue
+        try:
+            snapshots.save(markets[symbol])
+        except OSError as exc:
+            print(f"  {symbol}: snapshot not saved ({exc}); trading continues.")
 
     accounts = replay(records, list(REGISTRY))
     if UNDERLYING in markets:

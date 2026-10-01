@@ -49,6 +49,7 @@ def test_each_market_has_its_own_coin():
 @pytest.fixture
 def offline(tmp_path, monkeypatch):
     monkeypatch.setattr(config, "JOURNAL", tmp_path / "lab.jsonl")
+    monkeypatch.setattr(config, "SNAPSHOT_DIR", tmp_path / "snapshots")
     bars = {"SPY": "2026-10-02", config.FTSE: "2026-10-02"}
 
     def fake_fetch(symbol):
