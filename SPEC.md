@@ -306,7 +306,35 @@ read-only connection, else the local journal. It deliberately ignores sync's
 `MOMENTUM_DATABASE_URL`, so a machine set up only to view can never push its
 own `state/` into the database.
 
-FTSE methods are judged only against `random_walk_ftse`. They were registered
+FTSE methods are judged only against `random_walk_ftse`.
+
+### Graduation criteria (pre-registered 2026-10-01, before any trade)
+
+Fixed now, while the scoreboard is empty, so January's decision cannot be fitted
+to January's results. A method earns a real-money pilot only by passing **all
+four**, judged on the server's journal at the 2027-01-01 assessment:
+
+1. **Beats its control** — finishes at least 3 percentage points ahead of its
+   own market's `random_walk` control, net of all costs.
+2. **Has a documented mechanism** — a published reason it should work.
+   `theta_puts`, `overnight` and `sma_cross` (and their FTSE twins) qualify;
+   `lunar` and the controls never can.
+3. **Drawdown within limit** — maximum drawdown over the contest no worse than
+   15%.
+4. **Survives a longer test** — share-trading methods must beat buy-and-hold on
+   risk-adjusted return over 20+ years of history after costs; option methods
+   must keep a simulated sudden 20% index drop within the 15% limit.
+
+Criteria 1–3 are filters, not proof: three months is too short to separate skill
+from luck. Criterion 4 carries the weight.
+
+**Pilot terms.** A passing method gets £1,000 of real money for three months,
+tracked trade by trade against its paper twin. Hard stop: if the pilot falls to
+£800 it closes and is reviewed — decided now, not mid-drop. Scaling up requires
+real fills to match paper fills. A method that fails any criterion is retired
+with its record intact. Options cannot be held in an ISA, and a cash-secured put
+needs far more than £1,000 of collateral, so a put-selling pilot at this size
+would need a capped-loss (spread) variant registered as its own method. They were registered
 on 2026-10-01 alongside the SPY roster, before any trade. Theta is US-only: no
 free UK option data, and UK index options are thin and largely closed to
 retail.
