@@ -207,7 +207,21 @@ def run_sync() -> int:
     if not url:
         print(f"{URL_VAR} not set; nothing synced (state/ files are unaffected).")
         return 0
-    store = PostgresStore(url)
+    import psycopg
+
+    try:
+        store = PostgresStore(url)
+    except psycopg.errors.ConnectionTimeout:
+        print("Sync: database connection timed out. On a managed cluster this usually "
+              "means this server is not in its trusted sources.")
+        return 1
+    except psycopg.errors.InsufficientPrivilege:
+        print("Sync: the database user cannot create tables. As the admin user, run in "
+              "the momentum database: GRANT USAGE, CREATE ON SCHEMA public TO <user>;")
+        return 1
+    except psycopg.OperationalError as exc:
+        print(f"Sync: could not connect ({str(exc).splitlines()[0]}).")
+        return 1
     try:
         summary = sync(store)
     finally:
