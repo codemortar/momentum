@@ -27,7 +27,7 @@ Features:
 - Decisions are made on the month-end close and executed the next trading day.
 - Real costs. A per-rebalance trading cost and optional annual fee, so the
   comparison between strategies isn't a fantasy.
-- 147 fast, offline tests covering the strategy logic, backtest engine and signal
+- 160 fast, offline tests covering the strategy logic, backtest engine and signal
   timing, including the property-based no-lookahead test above. No network, runs
   in under a second.
 - The monthly job runs the whole suite first (`run_monthly.sh`) and only acts on
@@ -103,6 +103,7 @@ money.
 python -m momentum lab methods   # the pre-registered rules
 python -m momentum lab run       # one daily cycle (during US market hours)
 python -m momentum lab report    # the scoreboard
+python -m momentum lab dashboard --open   # charts in the browser (local page)
 ```
 
 On the server, weekdays at 19:30 UTC (US market open year-round):

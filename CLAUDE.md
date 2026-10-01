@@ -18,7 +18,7 @@ python -m momentum ledger   --universe uk [--strategy NAME]
 python -m momentum screen   --universe uk|us [--top N] [--near-lows] [--by-sector] [--refresh]
 python -m momentum walkforward --universe us [--select strategies|buffers] [--strategy NAME]
 python -m momentum punt     add|close|list [--ticker X --amount N --thesis "..."]
-python -m momentum lab      run|report|methods [--force]     # paper-trading contest
+python -m momentum lab      run|report|methods|dashboard [--force] [--open]  # paper-trading contest
 python -m momentum sync                                      # mirror state/ to Postgres
 
 ```

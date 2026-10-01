@@ -10,7 +10,7 @@ Commands:
   walkforward --universe us [--select strategies|buffers] [--strategy NAME]
               [--train-years N] [--test-years N] [--tranches N] [--metric sharpe|cagr]
   punt     add|close|list  (individual stock bets, tracked outside the strategy)
-  lab      run|report|methods  (paper-trading contest; no real money)
+  lab      run|report|methods|dashboard [--open]  (paper-trading contest; no real money)
   sync     (mirror state/ into Postgres; needs MOMENTUM_DATABASE_URL)
 """
 
@@ -107,6 +107,10 @@ def _cmd_lab(args: argparse.Namespace) -> int:
         from .lab.report import run_report
 
         return run_report()
+    if args.action == "dashboard":
+        from .lab.dashboard import run_dashboard
+
+        return run_dashboard(open_browser=args.open)
     from .lab.methods import REGISTRY
 
     for method in REGISTRY.values():
@@ -244,8 +248,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_pt.set_defaults(func=_cmd_punt)
 
     p_lab = sub.add_parser("lab", help="paper-trading contest between prediction methods")
-    p_lab.add_argument("action", choices=["run", "report", "methods"])
+    p_lab.add_argument("action", choices=["run", "report", "methods", "dashboard"])
     p_lab.add_argument("--force", action="store_true", help="re-run even if today is marked")
+    p_lab.add_argument("--open", action="store_true", help="dashboard: open it in the browser")
     p_lab.set_defaults(func=_cmd_lab)
 
     p_sync = sub.add_parser("sync", help="mirror state/ into Postgres (MOMENTUM_DATABASE_URL)")

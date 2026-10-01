@@ -297,6 +297,15 @@ it, sync does nothing. The connection runs in autocommit mode, because a bare
 read otherwise opens an implicit transaction and later blocks become savepoints
 that are never committed.
 
+**Dashboard.** `python -m momentum lab dashboard [--open]` writes
+`output/lab_dashboard.html`: return curves per market (indexed to 0%, so USD
+and GBP accounts share one axis), the scoreboard, open positions and recent
+fills. It reads the database through its own variable,
+`MOMENTUM_READ_DATABASE_URL` (environment or the repo's gitignored `.env`), on a
+read-only connection, else the local journal. It deliberately ignores sync's
+`MOMENTUM_DATABASE_URL`, so a machine set up only to view can never push its
+own `state/` into the database.
+
 FTSE methods are judged only against `random_walk_ftse`. They were registered
 on 2026-10-01 alongside the SPY roster, before any trade. Theta is US-only: no
 free UK option data, and UK index options are thin and largely closed to

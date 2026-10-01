@@ -7,7 +7,7 @@ data/cache/
 # (~/momentum.env on the server), so nothing here needs a committed .env.
 .env
 .env.*
-output/*.png
+output/
 state/
 .pytest_cache/
 .DS_Store
